@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>桌宠配置</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px 28px 20px;
+        font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        color: #2b2b2b;
+        background: #f7f4ef;
+      }
+      .head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .section-label {
+        margin: 0 0 10px;
+        font-size: 13px;
+        color: rgba(43, 43, 43, 0.72);
+      }
+      .pet-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .pet-chip,
+      .pet-add {
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .pet-chip {
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        background: #fff;
+        color: #2b2b2b;
+      }
+      .pet-chip.active {
+        border-color: #4c8bf5;
+        background: #eef4ff;
+      }
+      .pet-add {
+        border: 1px dashed rgba(0, 0, 0, 0.18);
+        background: transparent;
+        color: rgba(43, 43, 43, 0.72);
+      }
+      .card {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 14px;
+        background: #fff;
+        padding: 18px 18px 16px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .card-head h2 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .danger {
+        border: 1px solid #f0b4b4;
+        border-radius: 10px;
+        background: #fff;
+        color: #b42318;
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px 14px;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 12px;
+        color: rgba(43, 43, 43, 0.72);
+      }
+      input,
+      select {
+        width: 100%;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: 14px;
+        background: #fff;
+        color: #2b2b2b;
+      }
+      input:focus,
+      select:focus {
+        outline: 2px solid rgba(43, 43, 43, 0.15);
+        outline-offset: 1px;
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        margin: 0;
+        font-size: 14px;
+        color: #2b2b2b;
+      }
+      .check input {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+      }
+      .field-note {
+        margin: 6px 0 0;
+        font-size: 12px;
+        line-height: 1.4;
+        color: rgba(43, 43, 43, 0.55);
+      }
+      .actions {
+        margin-top: 18px;
+      }
+      .primary {
+        border: 0;
+        border-radius: 10px;
+        background: #2b2b2b;
+        color: #fff;
+        padding: 10px 16px;
+        font-size: 14px;
+      }
+      #status {
+        min-height: 1.4em;
+        margin-top: 12px;
+        font-size: 13px;
+      }
+      #status.error {
+        color: #b42318;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <h1>桌宠配置</h1>
+    </div>
+    <p class="section-label">宠物列表</p>
+    <div id="petList" class="pet-list"></div>
+    <div class="card">
+      <div class="card-head">
+        <h2>宠物配置</h2>
+        <button id="deletePet" class="danger" type="button">删除</button>
+      </div>
+      <div class="grid">
+        <div>
+          <label for="petName">名字</label>
+          <input id="petName" autocomplete="off" />
+        </div>
+        <div>
+          <label for="petSize">大小（宽度 px）</label>
+          <input id="petSize" type="number" min="120" max="1200" step="1" />
+        </div>
+        <div>
+          <label for="whisperUseModel">碎碎念</label>
+          <label class="check">
+            <input id="whisperUseModel" type="checkbox" checked />
+            调用 AI 模型
+          </label>
+          <p class="field-note">开启后每次碎碎念都会请求模型，消耗 token。关闭则只用本地配文。</p>
+        </div>
+        <div>
+          <label for="petCorner">位置</label>
+          <select id="petCorner"></select>
+        </div>
+        <div>
+          <label for="petMarginX">水平偏移</label>
+          <input id="petMarginX" type="number" step="1" />
+        </div>
+        <div>
+          <label for="petMarginY">垂直偏移</label>
+          <input id="petMarginY" type="number" step="1" />
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="save" class="primary" type="button">保存</button>
+    </div>
+    <div id="status"></div>
+    <script>
+      const origin = window.petConfigUi.origin;
+      const status = document.getElementById('status');
+      const petList = document.getElementById('petList');
+      const petName = document.getElementById('petName');
+      const petSize = document.getElementById('petSize');
+      const whisperUseModel = document.getElementById('whisperUseModel');
+      const petCorner = document.getElementById('petCorner');
+      const petMarginX = document.getElementById('petMarginX');
+      const petMarginY = document.getElementById('petMarginY');
+      const saveButton = document.getElementById('save');
+      const deleteButton = document.getElementById('deletePet');
+
+      let pets = [];
+      let selectedId = '';
+      let template = null;
+
+      function chipLabel(pet) {
+        return pet.name + '（' + pet.size + 'px）';
+      }
+
+      function selectedPet() {
+        return pets.find((pet) => pet.id === selectedId) || pets[0];
+      }
+
+      function syncFormFromPet() {
+        const pet = selectedPet();
+        if (!pet) return;
+        selectedId = pet.id;
+        petName.value = pet.name || '';
+        petSize.value = String(pet.size ?? 462);
+        whisperUseModel.checked = pet.whisperUseModel !== false;
+        petCorner.value = pet.position?.corner || 'top-right';
+        petMarginX.value = String(pet.position?.marginX ?? 24);
+        petMarginY.value = String(pet.position?.marginY ?? 250);
+        deleteButton.disabled = pets.length <= 1;
+      }
+
+      function syncPetFromForm() {
+        const pet = selectedPet();
+        if (!pet) return;
+        pet.name = petName.value.trim() || pet.id;
+        pet.size = Number(petSize.value);
+        pet.whisperUseModel = whisperUseModel.checked;
+        pet.position = {
+          corner: petCorner.value,
+          marginX: Number(petMarginX.value),
+          marginY: Number(petMarginY.value),
+        };
+      }
+
+      function renderPetList() {
+        petList.replaceChildren();
+        for (const pet of pets) {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'pet-chip' + (pet.id === selectedId ? ' active' : '');
+          chip.textContent = chipLabel(pet);
+          chip.onclick = () => {
+            syncPetFromForm();
+            selectedId = pet.id;
+            renderPetList();
+            syncFormFromPet();
+          };
+          petList.appendChild(chip);
+        }
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'pet-add';
+        add.textContent = '+ 添加宠物';
+        add.onclick = () => {
+          syncPetFromForm();
+          if (!template) return;
+          const base = template;
+          let index = pets.length + 1;
+          let id = 'pet' + index;
+          while (pets.some((pet) => pet.id === id)) {
+            index += 1;
+            id = 'pet' + index;
+          }
+          const created = {
+            id,
+            name: (base.name || '桌宠') + ' ' + index,
+            size: base.size || 462,
+            display: 'desktop',
+            balanceEnabled: base.balanceEnabled !== false,
+            whisperEnabled: base.whisperEnabled !== false,
+            whisperUseModel: true,
+            workStatusEnabled: base.workStatusEnabled !== false,
+            fixedEnabled: Boolean(base.fixedEnabled),
+            position: {
+              corner: base.position?.corner || 'top-right',
+              marginX: base.position?.marginX ?? 24,
+              marginY: base.position?.marginY ?? 250,
+            },
+          };
+          pets.push(created);
+          selectedId = created.id;
+          renderPetList();
+          syncFormFromPet();
+        };
+        petList.appendChild(add);
+      }
+
+      [petName, petSize, whisperUseModel, petCorner, petMarginX, petMarginY].forEach((input) => {
+        input.addEventListener('input', syncPetFromForm);
+        input.addEventListener('change', syncPetFromForm);
+      });
+
+      deleteButton.onclick = () => {
+        if (pets.length <= 1) return;
+        syncPetFromForm();
+        pets = pets.filter((pet) => pet.id !== selectedId);
+        selectedId = pets[0].id;
+        renderPetList();
+        syncFormFromPet();
+      };
+
+      saveButton.onclick = async () => {
+        saveButton.disabled = true;
+        status.classList.remove('error');
+        syncPetFromForm();
+        status.textContent = '保存中…';
+        try {
+          const res = await fetch(origin + '/dsh-pet-7340/pet-config', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ pets }),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            status.textContent = data.message || '保存失败';
+            status.classList.add('error');
+            return;
+          }
+          pets = data.pets || pets;
+          selectedId = pets[0]?.id || selectedId;
+          renderPetList();
+          syncFormFromPet();
+          status.textContent = '已保存，桌宠窗口会重新加载';
+        } catch (error) {
+          status.textContent = '保存失败：' + error.message;
+          status.classList.add('error');
+        } finally {
+          saveButton.disabled = false;
+        }
+      };
+
+      fetch(origin + '/dsh-pet-7340/pet-config')
+        .then((res) => res.json())
+        .then((data) => {
+          pets = data.pets || [];
+          template = data.template;
+          for (const corner of data.corners || []) {
+            const option = document.createElement('option');
+            option.value = corner.value;
+            option.textContent = corner.label;
+            petCorner.appendChild(option);
+          }
+          selectedId = pets[0]?.id || '';
+          renderPetList();
+          syncFormFromPet();
+        })
+        .catch((error) => {
+          status.textContent = '读取配置失败：' + error.message;
+          status.classList.add('error');
+        });
+    </script>
+  </body>
+</html>

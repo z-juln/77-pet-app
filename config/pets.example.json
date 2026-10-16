@@ -1,0 +1,20 @@
+{
+  "pets": [
+    {
+      "id": "main",
+      "name": "蓝毛小女仆",
+      "size": 462,
+      "display": "both",
+      "balanceEnabled": true,
+      "whisperEnabled": true,
+      "whisperUseModel": true,
+      "workStatusEnabled": true,
+      "fixedEnabled": false,
+      "position": {
+        "corner": "top-right",
+        "marginX": 24,
+        "marginY": 250
+      }
+    }
+  ]
+}

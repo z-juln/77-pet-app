@@ -12,6 +12,13 @@ import { fileURLToPath } from 'node:url';
 
 import { parseJsonc } from './jsonc.mjs';
 import { completeChat, extractChatImage, memeCatalog, validateApiCredentials } from './llm.mjs';
+import {
+  CORNER_LABEL,
+  createPetFromTemplate,
+  mergePetsIntoConfig,
+  normalizeUserPet,
+  validateUserPets,
+} from './pets-config.mjs';
 import { isApiKeyError, pickLocalWhisper } from './whisper-fallback.mjs';
 
 const require = createRequire(import.meta.url);
@@ -147,12 +154,32 @@ function loadBaseConfig() {
   return parsed;
 }
 
-function applyDisplayOverrides(config, overrides) {
-  const pets = Array.isArray(config.pets) ? config.pets.map((pet) => ({ ...pet })) : [];
-  for (const pet of pets) {
-    if (overrides[pet.id]) pet.display = overrides[pet.id];
+function petsUserPath() {
+  return path.join(USER_DIR, 'pets.json');
+}
+
+function loadUserPets() {
+  const base = loadBaseConfig();
+  const basePets = Array.isArray(base.pets) ? base.pets : [];
+  const baseById = Object.fromEntries(basePets.map((pet) => [pet.id, pet]));
+  const saved = readJson(petsUserPath(), null);
+  if (saved && Array.isArray(saved.pets) && saved.pets.length > 0) {
+    return saved.pets.map((pet) => normalizeUserPet(pet, baseById));
   }
-  return { ...config, pets };
+  const displayOverrides = readJson(path.join(USER_DIR, 'display.json'), {});
+  return basePets.map((pet) =>
+    normalizeUserPet({ ...pet, display: displayOverrides[pet.id] ?? pet.display }, baseById),
+  );
+}
+
+function saveUserPets(pets) {
+  const base = loadBaseConfig();
+  const baseById = Object.fromEntries((base.pets ?? []).map((pet) => [pet.id, pet]));
+  validateUserPets(pets);
+  const normalized = pets.map((pet) => normalizeUserPet(pet, baseById));
+  mkdirSync(USER_DIR, { recursive: true });
+  writeFileSync(petsUserPath(), JSON.stringify({ pets: normalized }, null, 2) + '\n', 'utf8');
+  return normalized;
 }
 
 function desktopPets(config) {
@@ -344,8 +371,6 @@ function trayIconPath() {
 export async function start(options = {}) {
   const launchHelper = options.launchHelper !== false;
   const onRelaunch = options.onRelaunch;
-  const displayPath = path.join(USER_DIR, 'display.json');
-  const displayOverrides = readJson(displayPath, {});
   const state = {
     sections: { balance: leaf(), workStatus: leaf() },
     pets: {},
@@ -358,7 +383,7 @@ export async function start(options = {}) {
   let announcedKeyFallback = false;
   const fallbackBook = readJson(path.join(ROOT, 'src', 'whisper-fallbacks.json'), {});
 
-  const currentConfig = () => applyDisplayOverrides(loadBaseConfig(), displayOverrides);
+  const currentConfig = () => mergePetsIntoConfig(loadBaseConfig(), loadUserPets());
 
   const publicState = () => ({
     sections: state.sections,
@@ -371,12 +396,12 @@ export async function start(options = {}) {
     writeLeaf(pet.say, image ? { text, image } : { text });
   };
 
-  const showLocalWhisper = (petId, reason) => {
+  const showLocalWhisper = (petId, reason, quiet = false) => {
     const config = currentConfig();
     const pool = config.whisperImageEnabled === true ? memePool(config) : [];
     const picked = pickLocalWhisper(fallbackBook, pool);
     if (!picked) return { ok: false, reason: 'fallback-empty', message: '没有本地配文' };
-    if (!announcedKeyFallback) {
+    if (!quiet && !announcedKeyFallback) {
       announcedKeyFallback = true;
       console.error('[dsh-pet] ' + reason + '，碎碎念改用本地配文');
     }
@@ -387,6 +412,8 @@ export async function start(options = {}) {
   const generateWhisper = async (petId) => {
     const settings = loadSettings();
     const config = currentConfig();
+    const pet = (config.pets ?? []).find((item) => item.id === petId);
+    if (pet?.whisperUseModel === false) return showLocalWhisper(petId, '已关闭模型', true);
     if (!settings.apiKey) return showLocalWhisper(petId, '还没有填写 API Key');
     const pool = config.whisperImageEnabled === true ? memePool(config) : [];
     const meme = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : undefined;
@@ -658,6 +685,29 @@ export async function start(options = {}) {
           return;
         }
       }
+      if (rest === 'pet-config' && method === 'GET') {
+        const base = loadBaseConfig();
+        sendJson(res, 200, {
+          pets: loadUserPets(),
+          template: base.pets?.[0] ?? null,
+          corners: Object.entries(CORNER_LABEL).map(([value, label]) => ({ value, label })),
+        });
+        return;
+      }
+      if (rest === 'pet-config' && method === 'PUT') {
+        const parsed = JSON.parse(body || '{}');
+        try {
+          const saved = saveUserPets(parsed.pets);
+          sendJson(res, 200, { ok: true, pets: saved });
+          void restartHelper();
+        } catch (error) {
+          sendJson(res, 200, {
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      }
       if (rest === 'pet-display' && method === 'POST') {
         const parsed = JSON.parse(body || '{}');
         const petId = typeof parsed.id === 'string' ? parsed.id : '';
@@ -666,9 +716,14 @@ export async function start(options = {}) {
           sendJson(res, 400, { error: 'invalid pet display' });
           return;
         }
-        displayOverrides[petId] = display;
-        mkdirSync(USER_DIR, { recursive: true });
-        writeFileSync(displayPath, JSON.stringify(displayOverrides, null, 2), 'utf8');
+        const pets = loadUserPets();
+        const index = pets.findIndex((pet) => pet.id === petId);
+        if (index < 0) {
+          sendJson(res, 404, { error: 'pet not found' });
+          return;
+        }
+        pets[index] = { ...pets[index], display };
+        saveUserPets(pets);
         sendJson(res, 200, { main: currentConfig() });
         void restartHelper();
         return;

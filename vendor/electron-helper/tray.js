@@ -33,6 +33,50 @@ function request(method, pathname, body) {
   req.end();
 }
 
+function openPetConfig() {
+  const win = new BrowserWindow({
+    width: 720,
+    height: 560,
+    title: '桌宠配置',
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'pet-config-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  win.loadFile(path.join(__dirname, 'pet-config.html'), { query: { origin: origin() } });
+}
+
+function openAbout() {
+  const win = new BrowserWindow({
+    width: 440,
+    height: 280,
+    title: '关于',
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+  win.loadFile(path.join(__dirname, 'about.html'));
+}
+
 function openSettings() {
   const win = new BrowserWindow({
     width: 440,
@@ -71,7 +115,9 @@ function installTray() {
   tray.setToolTip('dsh-pet 桌宠');
   tray.setContextMenu(
     Menu.buildFromTemplate([
+      { label: '桌宠配置', click: openPetConfig },
       { label: '设置 API', click: openSettings },
+      { label: '关于', click: openAbout },
       { type: 'separator' },
       {
         label: '退出桌宠',
