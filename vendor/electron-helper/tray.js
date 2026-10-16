@@ -55,7 +55,7 @@ function openPetConfig() {
 function openAbout() {
   const win = new BrowserWindow({
     width: 440,
-    height: 280,
+    height: 300,
     title: '关于',
     resizable: false,
     minimizable: false,
