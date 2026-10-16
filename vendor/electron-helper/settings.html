@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>桌宠设置</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px 28px 20px;
+        font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        color: #2b2b2b;
+        background: #f7f4ef;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 18px;
+        color: rgba(43, 43, 43, 0.62);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        margin: 12px 0 6px;
+        font-size: 13px;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+        background: #fff;
+        color: #2b2b2b;
+      }
+      input:focus {
+        outline: 2px solid rgba(43, 43, 43, 0.18);
+        outline-offset: 1px;
+      }
+      .combo {
+        position: relative;
+      }
+      .combo input {
+        padding-right: 36px;
+      }
+      .combo-toggle {
+        position: absolute;
+        top: 1px;
+        right: 1px;
+        width: 34px;
+        height: calc(100% - 2px);
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0 9px 9px 0;
+        background: transparent;
+        color: rgba(43, 43, 43, 0.55);
+        font-size: 12px;
+      }
+      .combo-menu {
+        position: absolute;
+        z-index: 2;
+        left: 0;
+        right: 0;
+        top: calc(100% + 4px);
+        margin: 0;
+        padding: 4px;
+        list-style: none;
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      }
+      .combo-menu[hidden] {
+        display: none;
+      }
+      .combo-menu button {
+        width: 100%;
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: transparent;
+        color: #2b2b2b;
+        text-align: left;
+        font-size: 14px;
+      }
+      .combo-menu button:hover {
+        background: rgba(43, 43, 43, 0.06);
+      }
+      button {
+        margin-top: 18px;
+        border: 0;
+        border-radius: 10px;
+        background: #2b2b2b;
+        color: #fff;
+        padding: 10px 16px;
+        font-size: 14px;
+      }
+      .hint-slot {
+        position: relative;
+        height: 18px;
+        margin: 8px 0 0;
+      }
+      .hint,
+      .hint-action {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 18px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        font: 12px/18px 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        text-align: left;
+        white-space: nowrap;
+      }
+      .hint {
+        color: rgba(43, 43, 43, 0.62);
+      }
+      .hint a {
+        color: #1a5fb4;
+        text-decoration: none;
+      }
+      .hint a:hover {
+        text-decoration: underline;
+      }
+      .hint-action {
+        display: block;
+        appearance: none;
+        border-radius: 0;
+        background: transparent;
+        color: #1a5fb4;
+      }
+      .hint[hidden],
+      .hint-action[hidden] {
+        display: none;
+      }
+      .hint-action:hover {
+        text-decoration: underline;
+      }
+      #status {
+        min-height: 1.4em;
+        margin-top: 12px;
+        font-size: 13px;
+      }
+      #status.error {
+        color: #b42318;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>接入模型</h1>
+    <p>碎碎念和对话都走这个 OpenAI 兼容接口。Key 只保存在本机。</p>
+    <label for="baseUrl">接口地址</label>
+    <div class="combo">
+      <input id="baseUrl" autocomplete="off" />
+      <button class="combo-toggle" type="button" data-menu="baseUrlMenu" aria-label="选择接口地址">▾</button>
+      <ul id="baseUrlMenu" class="combo-menu" hidden></ul>
+    </div>
+    <label for="model">模型</label>
+    <div class="combo">
+      <input id="model" autocomplete="off" />
+      <button class="combo-toggle" type="button" data-menu="modelMenu" aria-label="选择模型">▾</button>
+      <ul id="modelMenu" class="combo-menu" hidden></ul>
+    </div>
+    <label for="apiKey">API Key</label>
+    <input id="apiKey" type="password" autocomplete="off" />
+    <div id="apiKeyHint" class="hint-slot">
+      <p id="apiKeyGuide" class="hint">
+        在此接口获取 API Key：<a
+          id="apiKeyGuideLink"
+          href="https://github.com/chatanywhere/GPT_API_free"
+          target="_blank"
+          rel="noopener noreferrer"
+          >github.com/chatanywhere/GPT_API_free</a
+        >
+      </p>
+      <button id="useDefaultApi" class="hint-action" type="button" hidden>
+        不知道如何获取 API Key？使用推荐接口和模型
+      </button>
+    </div>
+    <button id="save" type="button">保存</button>
+    <div id="status"></div>
+    <script>
+      const origin = window.petSettings.origin;
+      const status = document.getElementById('status');
+      const baseUrl = document.getElementById('baseUrl');
+      const model = document.getElementById('model');
+      const apiKey = document.getElementById('apiKey');
+      const apiKeyGuide = document.getElementById('apiKeyGuide');
+      const apiKeyGuideLink = document.getElementById('apiKeyGuideLink');
+      const useDefaultApi = document.getElementById('useDefaultApi');
+      const saveButton = document.getElementById('save');
+      let defaultBaseUrl = 'https://api.chatanywhere.tech/v1';
+      let defaultModel = 'deepseek-v4-flash';
+
+      function normalizeBaseUrl(url) {
+        return String(url || '')
+          .trim()
+          .replace(/\/+$/, '');
+      }
+
+      function syncApiKeyHint() {
+        const usingDefault = normalizeBaseUrl(baseUrl.value) === normalizeBaseUrl(defaultBaseUrl);
+        apiKeyGuide.hidden = !usingDefault;
+        useDefaultApi.hidden = usingDefault;
+      }
+
+      function applyRecommended() {
+        baseUrl.value = defaultBaseUrl;
+        model.value = defaultModel;
+        syncApiKeyHint();
+        baseUrl.focus();
+      }
+
+      function fillChoices(menuId, inputId, values) {
+        const menu = document.getElementById(menuId);
+        const input = document.getElementById(inputId);
+        menu.replaceChildren();
+        for (const value of values) {
+          if (!value) continue;
+          const item = document.createElement('li');
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.textContent = value;
+          option.onclick = () => {
+            input.value = value;
+            menu.hidden = true;
+            input.focus();
+            if (inputId === 'baseUrl') syncApiKeyHint();
+          };
+          item.appendChild(option);
+          menu.appendChild(item);
+        }
+      }
+
+      document.querySelectorAll('.combo-toggle').forEach((toggle) => {
+        toggle.onclick = (event) => {
+          event.stopPropagation();
+          const menu = document.getElementById(toggle.dataset.menu);
+          const willOpen = menu.hidden;
+          document.querySelectorAll('.combo-menu').forEach((item) => {
+            item.hidden = true;
+          });
+          menu.hidden = !willOpen;
+        };
+      });
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.combo-menu').forEach((item) => {
+          item.hidden = true;
+        });
+      });
+      baseUrl.addEventListener('input', syncApiKeyHint);
+      useDefaultApi.addEventListener('click', applyRecommended);
+
+      fetch(origin + '/dsh-pet-7340/app-settings')
+        .then((res) => res.json())
+        .then((data) => {
+          const choices = data.choices || {};
+          defaultBaseUrl = data.defaultBaseUrl || (choices.baseUrl && choices.baseUrl[0]) || defaultBaseUrl;
+          defaultModel = (choices.model && choices.model[0]) || defaultModel;
+          if (data.apiKeyGuideUrl) {
+            apiKeyGuideLink.href = data.apiKeyGuideUrl;
+            apiKeyGuideLink.textContent = data.apiKeyGuideUrl.replace(/^https?:\/\//, '');
+          }
+          fillChoices('baseUrlMenu', 'baseUrl', choices.baseUrl || []);
+          fillChoices('modelMenu', 'model', choices.model || []);
+          baseUrl.value = data.baseUrl || defaultBaseUrl;
+          model.value = data.model || defaultModel;
+          apiKey.value = data.apiKey || '';
+          syncApiKeyHint();
+        })
+        .catch((error) => {
+          status.textContent = '读取设置失败：' + error.message;
+          status.classList.add('error');
+        });
+      saveButton.onclick = async () => {
+        saveButton.disabled = true;
+        status.classList.remove('error');
+        const payload = {
+          baseUrl: baseUrl.value.trim(),
+          model: model.value.trim(),
+          apiKey: apiKey.value.trim(),
+        };
+        status.textContent = '正在验证并保存…';
+        try {
+          const res = await fetch(origin + '/dsh-pet-7340/app-settings', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            status.textContent = '验证失败：' + (data.message || data.error || '未知错误');
+            status.classList.add('error');
+            return;
+          }
+          baseUrl.value = data.baseUrl || '';
+          model.value = data.model || '';
+          apiKey.value = data.apiKey || '';
+          syncApiKeyHint();
+          status.textContent = '已保存';
+        } catch (error) {
+          status.textContent = '验证失败：' + error.message;
+          status.classList.add('error');
+        } finally {
+          saveButton.disabled = false;
+        }
+      };
+    </script>
+  </body>
+</html>
