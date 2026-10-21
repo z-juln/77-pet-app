@@ -11,15 +11,21 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { applyDownloadedUpdate } from './apply-update.mjs';
-import { parseJsonc } from './jsonc.mjs';
-import { completeChat, extractChatImage, memeCatalog, validateApiCredentials } from './llm.mjs';
 import {
-  CORNER_LABEL,
-  createPetFromTemplate,
-  mergePetsIntoConfig,
-  normalizeUserPet,
-  validateUserPets,
-} from './pets-config.mjs';
+  assembleConfigEntries,
+  basePets,
+  fallbackBookPath,
+  importPetZip,
+  installBundledPacks,
+  isBundledPack,
+  listPetPackNames,
+  mediaFile,
+  readPetPack,
+  removeUserPack,
+  userPacksDir,
+} from './pet-packs.mjs';
+import { completeChat, extractChatImage, memeCatalog, validateApiCredentials } from './llm.mjs';
+import { CORNER_LABEL, createPetFromTemplate, normalizeUserPet, validateUserPets } from './pets-config.mjs';
 import { compareVersions, downloadToFile, fetchLatestRelease, pickReleaseAsset } from './update.mjs';
 import { isApiKeyError, pickLocalWhisper } from './whisper-fallback.mjs';
 
@@ -152,13 +158,29 @@ function saveSettings(next) {
   return merged;
 }
 
-function loadBaseConfig() {
-  const file = path.join(ASSETS, 'config.jsonc');
-  const parsed = parseJsonc(readFileSync(file, 'utf8'));
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('config.jsonc 不是对象');
-  }
-  return parsed;
+function configEntries() {
+  return assembleConfigEntries(ROOT, loadUserPets(), USER_DIR);
+}
+
+function packChoices() {
+  return listPetPackNames(ROOT, USER_DIR).map((name) => {
+    const pack = readPetPack(ROOT, name, USER_DIR);
+    const pet = pack.config.pets[0] ?? { name, pack: name };
+    return { name, label: pet.name || name, template: pet, official: isBundledPack(ROOT, name) };
+  });
+}
+
+function entryForPet(petId) {
+  const entries = Object.values(configEntries());
+  return entries.find((entry) => (entry.config.pets ?? []).some((pet) => pet.id === petId)) ?? entries[0] ?? null;
+}
+
+function allRuntimePets() {
+  return Object.values(configEntries()).flatMap((entry) => entry.config.pets ?? []);
+}
+
+function publicConfig() {
+  return Object.fromEntries(Object.values(configEntries()).map((entry) => [entry.name, entry.config]));
 }
 
 function petsUserPath() {
@@ -166,22 +188,20 @@ function petsUserPath() {
 }
 
 function loadUserPets() {
-  const base = loadBaseConfig();
-  const basePets = Array.isArray(base.pets) ? base.pets : [];
-  const baseById = Object.fromEntries(basePets.map((pet) => [pet.id, pet]));
+  const baseList = basePets(ROOT, USER_DIR);
+  const baseById = Object.fromEntries(baseList.map((pet) => [pet.id, pet]));
   const saved = readJson(petsUserPath(), null);
   if (saved && Array.isArray(saved.pets) && saved.pets.length > 0) {
     return saved.pets.map((pet) => normalizeUserPet(pet, baseById));
   }
   const displayOverrides = readJson(path.join(USER_DIR, 'display.json'), {});
-  return basePets.map((pet) =>
+  return baseList.map((pet) =>
     normalizeUserPet({ ...pet, display: displayOverrides[pet.id] ?? pet.display }, baseById),
   );
 }
 
 function saveUserPets(pets) {
-  const base = loadBaseConfig();
-  const baseById = Object.fromEntries((base.pets ?? []).map((pet) => [pet.id, pet]));
+  const baseById = Object.fromEntries(basePets(ROOT, USER_DIR).map((pet) => [pet.id, pet]));
   validateUserPets(pets);
   const normalized = pets.map((pet) => normalizeUserPet(pet, baseById));
   mkdirSync(USER_DIR, { recursive: true });
@@ -207,10 +227,10 @@ function writeLeaf(target, data) {
   target.data = data;
 }
 
-function memePool(config) {
-  const memes = config.memes;
-  if (!memes || typeof memes !== 'object') return [];
-  const dir = path.join(ASSETS, 'memes');
+function memePool(entry) {
+  const memes = entry?.config?.memes;
+  if (!memes || typeof memes !== 'object' || !entry.dir) return [];
+  const dir = path.join(entry.dir, 'memes');
   const pool = [];
   for (const [name, desc] of Object.entries(memes)) {
     const text = typeof desc === 'string' ? desc.trim() : '';
@@ -260,6 +280,24 @@ function safeJoin(root, rel) {
   const base = path.resolve(root) + path.sep;
   if (target !== path.resolve(root) && !target.startsWith(base)) return null;
   return target;
+}
+
+function readBinary(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        reject(new Error('宠物包太大'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
 }
 
 function readBody(req) {
@@ -376,6 +414,7 @@ function trayIconPath() {
 }
 
 export async function start(options = {}) {
+  if (options.packaged) installBundledPacks(ROOT, USER_DIR);
   const launchHelper = options.launchHelper !== false;
   const onRelaunch = options.onRelaunch;
   const state = {
@@ -389,9 +428,8 @@ export async function start(options = {}) {
   let whisperTimer = null;
   let updateTimer = null;
   let announcedKeyFallback = false;
-  const fallbackBook = readJson(path.join(ROOT, 'src', 'whisper-fallbacks.json'), {});
 
-  const currentConfig = () => mergePetsIntoConfig(loadBaseConfig(), loadUserPets());
+  const runtimePets = () => allRuntimePets();
 
   const publicState = () => ({
     sections: state.sections,
@@ -405,9 +443,10 @@ export async function start(options = {}) {
   };
 
   const showLocalWhisper = (petId, reason, quiet = false) => {
-    const config = currentConfig();
-    const pool = config.whisperImageEnabled === true ? memePool(config) : [];
-    const picked = pickLocalWhisper(fallbackBook, pool);
+    const entry = entryForPet(petId);
+    const book = entry ? readJson(fallbackBookPath(entry.dir), {}) : {};
+    const pool = entry?.config.whisperImageEnabled === true ? memePool(entry) : [];
+    const picked = pickLocalWhisper(book, pool);
     if (!picked) return { ok: false, reason: 'fallback-empty', message: '没有本地配文' };
     if (!quiet && !announcedKeyFallback) {
       announcedKeyFallback = true;
@@ -419,11 +458,12 @@ export async function start(options = {}) {
 
   const generateWhisper = async (petId) => {
     const settings = loadSettings();
-    const config = currentConfig();
+    const entry = entryForPet(petId);
+    const config = entry?.config ?? {};
     const pet = (config.pets ?? []).find((item) => item.id === petId);
     if (pet?.whisperUseModel === false) return showLocalWhisper(petId, '已关闭模型', true);
     if (!settings.apiKey) return showLocalWhisper(petId, '还没有填写 API Key');
-    const pool = config.whisperImageEnabled === true ? memePool(config) : [];
+    const pool = config.whisperImageEnabled === true ? memePool(entry) : [];
     const meme = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : undefined;
     const userText = meme
       ? '随便说一句日常碎碎念，一句就好，20 字以内。\n这次会配一张表情包一起显示，图的内容是：' +
@@ -452,12 +492,13 @@ export async function start(options = {}) {
 
   const generateReply = async (petId, userText) => {
     const settings = loadSettings();
-    const config = currentConfig();
+    const entry = entryForPet(petId);
+    const config = entry?.config ?? {};
     if (!settings.apiKey) return { ok: false, reason: 'provider-missing', message: '还没有填写 API Key' };
     const rounds = Number(config.chatMemoryRounds);
     const history = memoryMessages(petId, Number.isFinite(rounds) ? rounds : 5);
     const limit = Math.floor(Number(config.chatImageLimit));
-    let pool = config.chatImageEnabled === true ? memePool(config) : [];
+    let pool = config.chatImageEnabled === true ? memePool(entry) : [];
     if (limit > 0) pool = pool.slice(0, limit);
     const instruction =
       pool.length === 0
@@ -483,14 +524,14 @@ export async function start(options = {}) {
   };
 
   const scheduleWhisper = () => {
-    const config = currentConfig();
+    const config = Object.values(configEntries())[0]?.config ?? {};
     const seconds = Number(config.eventsRefreshSec?.whisper);
     const periodMs = (Number.isFinite(seconds) && seconds > 0 ? seconds : 300) * 1000;
     const startup = loadSettings().whisperStartupDelaySec;
     const arm = (delay) => {
       whisperTimer = setTimeout(async () => {
         try {
-          const pets = (currentConfig().pets ?? []).filter((pet) => pet.whisperEnabled !== false);
+          const pets = runtimePets().filter((pet) => pet.whisperEnabled !== false);
           for (const pet of pets) await generateWhisper(pet.id);
         } catch (error) {
           console.error('[dsh-pet] 碎碎念失败：', error instanceof Error ? error.message : error);
@@ -511,7 +552,7 @@ export async function start(options = {}) {
 
   const startHelper = () => {
     if (!launchHelper || shuttingDown) return;
-    const pets = desktopPets(currentConfig());
+    const pets = desktopPets({ pets: runtimePets() });
     if (pets.length === 0) {
       console.warn('[dsh-pet] 没有 display 为 desktop/both 的宠物，不打开窗口');
       return;
@@ -695,10 +736,33 @@ export async function start(options = {}) {
       }
       const rest = decodeURIComponent(url.pathname.slice(ROUTE_PREFIX.length + 1));
       const method = req.method ?? 'GET';
+      if (rest === 'pet-skill' && method === 'GET') {
+        const template = readFileSync(path.join(ROOT, 'vendor', 'pet-skill', 'SKILL.md'), 'utf8');
+        const address = server.address();
+        const port = address && typeof address === 'object' ? address.port : 3080;
+        const text = template
+          .replaceAll('{{ORIGIN}}', 'http://127.0.0.1:' + port)
+          .replaceAll('{{PACK_DIR}}', userPacksDir(USER_DIR));
+        sendText(res, 200, text, 'text/markdown; charset=utf-8');
+        return;
+      }
+      if (rest === 'pet-packs/import' && method === 'POST') {
+        try {
+          const buf = await readBinary(req, 512 * 1024 * 1024);
+          const result = importPetZip(buf, USER_DIR);
+          sendJson(res, 200, { ok: true, ...result, packs: packChoices() });
+        } catch (error) {
+          sendJson(res, 200, {
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      }
       const body = method === 'POST' || method === 'PUT' ? await readBody(req) : '';
 
       if (rest === 'config' && method === 'GET') {
-        sendJson(res, 200, { main: currentConfig() });
+        sendJson(res, 200, publicConfig());
         return;
       }
       if (rest === 'state' && method === 'GET') {
@@ -809,7 +873,7 @@ export async function start(options = {}) {
       if (rest === 'chat') {
         const petId = url.searchParams.get('pet') || 'main';
         if (method === 'GET') {
-          const rounds = Number(currentConfig().chatMemoryRounds);
+          const rounds = Number(entryForPet(petId)?.config.chatMemoryRounds);
           sendJson(res, 200, {
             ok: true,
             rounds: Number.isFinite(rounds) ? rounds : 5,
@@ -840,11 +904,33 @@ export async function start(options = {}) {
           return;
         }
       }
+      if (rest === 'pet-packs/remove' && method === 'POST') {
+        try {
+          const parsed = JSON.parse(body || '{}');
+          const name = String(parsed.name || '').trim();
+          const kept = loadUserPets().filter((pet) => pet.pack !== name);
+          removeUserPack(ROOT, USER_DIR, name);
+          const packs = packChoices();
+          const fallback = packs.find((pack) => pack.official)?.template || packs[0]?.template;
+          if (kept.length === 0 && !fallback) throw new Error('没有可保留的宠物');
+          const next = kept.length > 0 ? kept : [createPetFromTemplate(fallback, [])];
+          const saved = saveUserPets(next);
+          sendJson(res, 200, { ok: true, name, pets: saved, packs });
+          void restartHelper();
+        } catch (error) {
+          sendJson(res, 200, {
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      }
       if (rest === 'pet-config' && method === 'GET') {
-        const base = loadBaseConfig();
+        const packs = packChoices();
         sendJson(res, 200, {
           pets: loadUserPets(),
-          template: base.pets?.[0] ?? null,
+          template: packs[0]?.template ?? null,
+          packs,
           corners: Object.entries(CORNER_LABEL).map(([value, label]) => ({ value, label })),
         });
         return;
@@ -879,7 +965,7 @@ export async function start(options = {}) {
         }
         pets[index] = { ...pets[index], display };
         saveUserPets(pets);
-        sendJson(res, 200, { main: currentConfig() });
+        sendJson(res, 200, publicConfig());
         void restartHelper();
         return;
       }
@@ -949,7 +1035,7 @@ export async function start(options = {}) {
 
   process.on('SIGINT', () => void stop('SIGINT').then(() => process.exit(0)));
   process.on('SIGTERM', () => void stop('SIGTERM').then(() => process.exit(0)));
-  const pets = desktopPets(currentConfig()).map((pet) => ({ id: pet.id, size: pet.size }));
+  const pets = desktopPets({ pets: runtimePets() }).map((pet) => ({ id: pet.id, size: pet.size }));
   return { port, stop, publicState, pets, trayIcon: trayIconPath() };
 }
 
@@ -960,19 +1046,20 @@ function resolveAsset(scope, parts) {
   if (scope === 'pic') {
     if (parts[0] === 'memes') {
       const segs = parts.slice(1);
-      const rel = (segs.length >= 2 ? segs.slice(1) : segs).join('/');
-      const file = safeJoin(path.join(ASSETS, 'memes'), rel);
-      return file && existsSync(file) ? file : null;
+      const rooted = segs.length >= 2;
+      const rootName = rooted ? segs[0] : 'main';
+      const rel = (rooted ? segs.slice(1) : segs).join('/');
+      return mediaFile(ROOT, rootName, 'memes', rel, USER_DIR);
     }
     const file = safeJoin(path.join(ASSETS, 'pic'), parts.join('/'));
     return file && existsSync(file) ? file : null;
   }
   if (scope === 'thumb') {
+    const rootName = parts[0] || 'main';
     const fileName = parts.slice(1).join('/');
     const ext = path.extname(fileName).toLowerCase();
     if (ext !== '.webm' && ext !== '.mov') return null;
-    const file = safeJoin(path.join(ASSETS, ext.slice(1)), fileName);
-    return file && existsSync(file) ? file : null;
+    return mediaFile(ROOT, rootName, ext.slice(1), fileName, USER_DIR);
   }
   return null;
 }

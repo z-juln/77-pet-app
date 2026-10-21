@@ -36,7 +36,7 @@ function request(method, pathname, body) {
 function openPetConfig() {
   const win = new BrowserWindow({
     width: 720,
-    height: 560,
+    height: 640,
     title: '桌宠配置',
     resizable: false,
     minimizable: false,

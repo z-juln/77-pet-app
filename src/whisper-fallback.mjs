@@ -29,5 +29,6 @@ export function pickLocalWhisper(book, pool, random = Math.random) {
   const name = names[Math.floor(random() * names.length)];
   const lines = book[name];
   const text = lines[Math.floor(random() * lines.length)];
-  return { text, image: name };
+  // 配文的键只有在表情包池里才是一张图。动画名写成键时不能当图，否则气泡会去加载不存在的 png。
+  return named.includes(name) ? { text, image: name } : { text, image: '' };
 }

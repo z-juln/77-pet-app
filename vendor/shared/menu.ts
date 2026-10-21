@@ -85,17 +85,17 @@ const leaf = (anim: string): MenuLeaf => ({ label: anim, anim });
 export function buildMenuTree(animations: Animations): MenuNode[] {
   const groups: MenuNode[] = [];
   const pools: Array<[string, string[]]> = [
-    ['待机', animations.idle],
-    ['转向', animations.turn],
-    ['拖拽', animations.drag],
-    ['点击回应', animations.clicks],
-    ['移动', animations.moves.actions.map((m) => m.name)],
+    ['待机', animations.idle ?? []],
+    ['转向', animations.turn ?? []],
+    ['拖拽', animations.drag ?? []],
+    ['点击回应', animations.clicks ?? []],
+    ['移动', (animations.moves?.actions ?? []).map((m) => m.name)],
   ];
   for (const [label, pool] of pools) {
     if (pool.length) groups.push({ label, children: pool.map(leaf) });
   }
   // config 随机动作分类（noMirror 分类照样可点播，播放端朝右时强制朝左见 isNoMirrorAnimation）
-  const cats = (animations.categories ?? []).filter((c) => c.actions.length > 0);
+  const cats = (animations.categories ?? []).filter((c) => Array.isArray(c.actions) && c.actions.length > 0);
   for (const c of cats) {
     groups.push({ label: c.id, children: c.actions.map(leaf) });
   }
@@ -117,7 +117,7 @@ export function buildMenuTree(animations: Animations): MenuNode[] {
 
 /** 该动画是否属于 noMirror 分类（文字类）：朝右（镜像）时点播前强制朝左，避免文字镜像 */
 export function isNoMirrorAnimation(categories: Category[], anim: string): boolean {
-  return (categories ?? []).some((c) => c.noMirror === true && c.actions.includes(anim));
+  return (categories ?? []).some((c) => c.noMirror === true && Array.isArray(c.actions) && c.actions.includes(anim));
 }
 
 /** 菜单样式 —— 两端注入同一份（浏览器并入 plugin css；桌面入窗口 head）。

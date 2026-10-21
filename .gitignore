@@ -3,3 +3,4 @@ config/settings.json
 .DS_Store
 dist/
 out/
+vendor/pet-packs/

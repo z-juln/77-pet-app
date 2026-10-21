@@ -179,7 +179,7 @@ var PetShared = (() => {
   };
   var randomBetween = (min, max) => Math.floor(min + Math.random() * (max - min));
   var pickWeightedCategory = (categories, facing) => {
-    const cats = categories.filter((c) => c.actions.length > 0);
+    const cats = (categories ?? []).filter((c) => Array.isArray(c?.actions) && c.actions.length > 0);
     if (!cats.length) return null;
     const filtered = cats.filter((c) => !(c.noMirror && facing === "right"));
     const eligible = filtered.length ? filtered : cats;
@@ -628,16 +628,16 @@ var PetShared = (() => {
   function buildMenuTree(animations) {
     const groups = [];
     const pools = [
-      ["\u5F85\u673A", animations.idle],
-      ["\u8F6C\u5411", animations.turn],
-      ["\u62D6\u62FD", animations.drag],
-      ["\u70B9\u51FB\u56DE\u5E94", animations.clicks],
-      ["\u79FB\u52A8", animations.moves.actions.map((m) => m.name)]
+      ["\u5F85\u673A", animations.idle ?? []],
+      ["\u8F6C\u5411", animations.turn ?? []],
+      ["\u62D6\u62FD", animations.drag ?? []],
+      ["\u70B9\u51FB\u56DE\u5E94", animations.clicks ?? []],
+      ["\u79FB\u52A8", (animations.moves?.actions ?? []).map((m) => m.name)]
     ];
     for (const [label, pool] of pools) {
       if (pool.length) groups.push({ label, children: pool.map(leaf) });
     }
-    const cats = (animations.categories ?? []).filter((c) => c.actions.length > 0);
+    const cats = (animations.categories ?? []).filter((c) => Array.isArray(c.actions) && c.actions.length > 0);
     for (const c of cats) {
       groups.push({ label: c.id, children: c.actions.map(leaf) });
     }
@@ -655,7 +655,7 @@ var PetShared = (() => {
     return [{ label: "\u52A8\u4F5C", children: groups }];
   }
   function isNoMirrorAnimation(categories, anim) {
-    return (categories ?? []).some((c) => c.noMirror === true && c.actions.includes(anim));
+    return (categories ?? []).some((c) => c.noMirror === true && Array.isArray(c.actions) && c.actions.includes(anim));
   }
   var MENU_CSS = [
     ".dsh-pet-menu{position:fixed;left:0;top:0;z-index:2147483000;color:#2b2b2b;font-size:13px;line-height:1.5;",

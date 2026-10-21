@@ -55,7 +55,7 @@ export const randomBetween = (min: number, max: number): number => Math.floor(mi
  * 剩余权重自动归一化。分类池为空时返回 null。
  */
 export const pickWeightedCategory = (categories: Category[], facing: string): Category | null => {
-  const cats = categories.filter((c) => c.actions.length > 0);
+  const cats = (categories ?? []).filter((c) => Array.isArray(c?.actions) && c.actions.length > 0);
   if (!cats.length) return null;
   const filtered = cats.filter((c) => !(c.noMirror && facing === 'right'));
   const eligible = filtered.length ? filtered : cats;

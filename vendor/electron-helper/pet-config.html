@@ -20,6 +20,45 @@
         justify-content: space-between;
         margin-bottom: 18px;
       }
+      .head-link {
+        border: 0;
+        background: transparent;
+        color: #4c8bf5;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 0;
+      }
+      .skill-panel {
+        width: min(560px, 100%);
+        max-height: calc(100vh - 48px);
+        display: flex;
+        flex-direction: column;
+        padding: 18px 18px 16px;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 16px 40px rgba(43, 43, 43, 0.18);
+      }
+      .skill-text {
+        max-height: calc(100vh - 210px);
+        margin: 0 0 12px;
+        padding: 12px;
+        overflow: auto;
+        border-radius: 10px;
+        background: #f7f4ef;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      #skillStatus {
+        min-height: 1.4em;
+        margin: 12px 0 0;
+        font-size: 13px;
+      }
+      #skillStatus.error {
+        color: #b42318;
+      }
       h1 {
         margin: 0;
         font-size: 20px;
@@ -56,6 +95,54 @@
         border: 1px dashed rgba(0, 0, 0, 0.18);
         background: transparent;
         color: rgba(43, 43, 43, 0.72);
+      }
+      .picker {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(43, 43, 43, 0.28);
+      }
+      .picker[hidden] {
+        display: none;
+      }
+      .picker-panel {
+        width: min(420px, 100%);
+        padding: 18px 18px 16px;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 16px 40px rgba(43, 43, 43, 0.18);
+      }
+      .picker-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .pack-choice {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pack-field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pack-field input {
+        flex: 1;
+      }
+      .pack-field .danger {
+        flex: none;
+        white-space: nowrap;
+      }
+      #pickerStatus {
+        min-height: 1.4em;
+        margin: 12px 0 0;
+        font-size: 13px;
+      }
+      #pickerStatus.error {
+        color: #b42318;
       }
       .card {
         border: 1px solid rgba(0, 0, 0, 0.08);
@@ -152,15 +239,46 @@
   <body>
     <div class="head">
       <h1>桌宠配置</h1>
+      <button id="openSkill" class="head-link" type="button">用 Agent 做宠物</button>
+    </div>
+    <div id="skillLayer" class="picker" hidden>
+      <div class="skill-panel">
+        <p class="section-label">复制下面的技能文档，贴给 Cursor、Codex 或其他 Agent。它会在本机写出宠物，改完后桌面上马上能看到。</p>
+        <pre id="skillText" class="skill-text">正在读取…</pre>
+        <div class="picker-actions">
+          <button id="copySkill" class="primary" type="button">复制给 Agent</button>
+          <button id="closeSkill" class="pet-add" type="button">关闭</button>
+        </div>
+        <p id="skillStatus"></p>
+      </div>
     </div>
     <p class="section-label">宠物列表</p>
     <div id="petList" class="pet-list"></div>
+    <div id="packPicker" class="picker" hidden>
+      <div class="picker-panel">
+        <p class="section-label">选择宠物种类，然后再填写名字和位置</p>
+        <div id="packChoices" class="pet-list"></div>
+        <div class="picker-actions">
+          <button id="importPack" class="pet-add" type="button">导入宠物包…</button>
+          <button id="cancelPick" class="pet-add" type="button">取消</button>
+        </div>
+        <p id="pickerStatus"></p>
+        <input id="packFile" type="file" accept=".zip,application/zip" hidden />
+      </div>
+    </div>
     <div class="card">
       <div class="card-head">
         <h2>宠物配置</h2>
         <button id="deletePet" class="danger" type="button">删除</button>
       </div>
       <div class="grid">
+        <div>
+          <label for="petPack">种类</label>
+          <div class="pack-field">
+            <input id="petPack" disabled />
+            <button id="deletePack" class="danger" type="button" hidden>删除种类</button>
+          </div>
+        </div>
         <div>
           <label for="petName">名字</label>
           <input id="petName" autocomplete="off" />
@@ -197,8 +315,23 @@
     <div id="status"></div>
     <script>
       const origin = window.petConfigUi.origin;
+      const openSkill = document.getElementById('openSkill');
+      const skillLayer = document.getElementById('skillLayer');
+      const skillText = document.getElementById('skillText');
+      const copySkill = document.getElementById('copySkill');
+      const closeSkill = document.getElementById('closeSkill');
+      const skillStatus = document.getElementById('skillStatus');
+      let skillMarkdown = '';
       const status = document.getElementById('status');
       const petList = document.getElementById('petList');
+      const packPicker = document.getElementById('packPicker');
+      const pickerStatus = document.getElementById('pickerStatus');
+      const packChoices = document.getElementById('packChoices');
+      const importPack = document.getElementById('importPack');
+      const cancelPick = document.getElementById('cancelPick');
+      const packFile = document.getElementById('packFile');
+      const petPack = document.getElementById('petPack');
+      const deletePack = document.getElementById('deletePack');
       const petName = document.getElementById('petName');
       const petSize = document.getElementById('petSize');
       const whisperUseModel = document.getElementById('whisperUseModel');
@@ -209,8 +342,9 @@
       const deleteButton = document.getElementById('deletePet');
 
       let pets = [];
+      let packs = [];
       let selectedId = '';
-      let template = null;
+      let picking = false;
 
       function chipLabel(pet) {
         return pet.name + '（' + pet.size + 'px）';
@@ -224,6 +358,9 @@
         const pet = selectedPet();
         if (!pet) return;
         selectedId = pet.id;
+        petPack.value = pet.pack || '';
+        const packInfo = packs.find((item) => item.name === pet.pack);
+        deletePack.hidden = !packInfo || packInfo.official;
         petName.value = pet.name || '';
         petSize.value = String(pet.size ?? 462);
         whisperUseModel.checked = pet.whisperUseModel !== false;
@@ -267,37 +404,150 @@
         add.textContent = '+ 添加宠物';
         add.onclick = () => {
           syncPetFromForm();
-          if (!template) return;
-          const base = template;
-          let index = pets.length + 1;
-          let id = 'pet' + index;
-          while (pets.some((pet) => pet.id === id)) {
-            index += 1;
-            id = 'pet' + index;
-          }
-          const created = {
-            id,
-            name: (base.name || '桌宠') + ' ' + index,
-            size: base.size || 462,
-            display: 'desktop',
-            balanceEnabled: base.balanceEnabled !== false,
-            whisperEnabled: base.whisperEnabled !== false,
-            whisperUseModel: true,
-            workStatusEnabled: base.workStatusEnabled !== false,
-            fixedEnabled: Boolean(base.fixedEnabled),
-            position: {
-              corner: base.position?.corner || 'top-right',
-              marginX: base.position?.marginX ?? 24,
-              marginY: base.position?.marginY ?? 250,
-            },
-          };
-          pets.push(created);
-          selectedId = created.id;
-          renderPetList();
-          syncFormFromPet();
+          picking = true;
+          renderPackChoices();
         };
         petList.appendChild(add);
       }
+
+      function renderPackChoices() {
+        packPicker.hidden = !picking;
+        packChoices.replaceChildren();
+        for (const pack of packs) {
+          const row = document.createElement('div');
+          row.className = 'pack-choice';
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'pet-chip';
+          button.textContent = pack.label || pack.name;
+          button.onclick = () => addFromPack(pack);
+          row.appendChild(button);
+          if (!pack.official) {
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'danger';
+            remove.textContent = '删除种类';
+            remove.onclick = () => removePack(pack);
+            row.appendChild(remove);
+          }
+          packChoices.appendChild(row);
+        }
+      }
+
+      async function removePack(pack) {
+        if (!pack || pack.official) return;
+        const label = pack.label || pack.name;
+        if (!window.confirm('删除「' + label + '」的资源？使用这个种类的桌宠也会去掉。')) return;
+        pickerStatus.classList.remove('error');
+        status.classList.remove('error');
+        pickerStatus.textContent = '正在删除…';
+        try {
+          const res = await fetch(origin + '/dsh-pet-7340/pet-packs/remove', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: pack.name }),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            pickerStatus.textContent = data.message || '删除失败';
+            pickerStatus.classList.add('error');
+            return;
+          }
+          packs = data.packs || [];
+          pets = data.pets || pets;
+          if (!pets.some((pet) => pet.id === selectedId)) selectedId = pets[0]?.id || '';
+          renderPackChoices();
+          renderPetList();
+          syncFormFromPet();
+          pickerStatus.textContent = '';
+          status.textContent = '已删除「' + label + '」';
+        } catch (error) {
+          pickerStatus.textContent = '删除失败：' + error.message;
+          pickerStatus.classList.add('error');
+        }
+      }
+
+      function addFromPack(pack) {
+        const base = pack.template || {};
+        let index = pets.length + 1;
+        let id = 'pet' + index;
+        while (pets.some((pet) => pet.id === id)) {
+          index += 1;
+          id = 'pet' + index;
+        }
+        const created = {
+          id,
+          name: (base.name || pack.name || '桌宠') + ' ' + index,
+          pack: pack.name,
+          size: base.size || 462,
+          display: 'desktop',
+          balanceEnabled: base.balanceEnabled !== false,
+          whisperEnabled: base.whisperEnabled !== false,
+          whisperUseModel: true,
+          workStatusEnabled: base.workStatusEnabled !== false,
+          fixedEnabled: Boolean(base.fixedEnabled),
+          position: {
+            corner: base.position?.corner || 'top-right',
+            marginX: base.position?.marginX ?? 24,
+            marginY: base.position?.marginY ?? 250,
+          },
+        };
+        pets.push(created);
+        selectedId = created.id;
+        picking = false;
+        renderPackChoices();
+        renderPetList();
+        syncFormFromPet();
+        status.textContent = '';
+        pickerStatus.textContent = '';
+      }
+
+      function closePicker() {
+        picking = false;
+        pickerStatus.textContent = '';
+        pickerStatus.classList.remove('error');
+        renderPackChoices();
+      }
+
+      packPicker.onclick = (event) => {
+        if (event.target === packPicker) closePicker();
+      };
+      cancelPick.onclick = closePicker;
+      deletePack.onclick = () => {
+        const pack = packs.find((item) => item.name === petPack.value);
+        if (pack) removePack(pack);
+      };
+
+      importPack.onclick = () => packFile.click();
+      packFile.onchange = async () => {
+        const file = packFile.files && packFile.files[0];
+        packFile.value = '';
+        if (!file) return;
+        pickerStatus.classList.remove('error');
+        pickerStatus.textContent = '正在导入…';
+        importPack.disabled = true;
+        try {
+          const res = await fetch(origin + '/dsh-pet-7340/pet-packs/import', {
+            method: 'POST',
+            headers: { 'content-type': 'application/zip' },
+            body: file,
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            pickerStatus.textContent = data.message || '导入失败';
+            pickerStatus.classList.add('error');
+            return;
+          }
+          packs = data.packs || packs;
+          renderPackChoices();
+          pickerStatus.textContent = '已导入「' + data.name + '」。点上面的种类即可添加。';
+        } catch (error) {
+          pickerStatus.textContent = '导入失败：' + error.message;
+          pickerStatus.classList.add('error');
+        } finally {
+          importPack.disabled = false;
+        }
+      };
 
       [petName, petSize, whisperUseModel, petCorner, petMarginX, petMarginY].forEach((input) => {
         input.addEventListener('input', syncPetFromForm);
@@ -343,11 +593,59 @@
         }
       };
 
+      function closeSkillLayer() {
+        skillLayer.hidden = true;
+        skillStatus.textContent = '';
+        skillStatus.classList.remove('error');
+      }
+
+      openSkill.onclick = async () => {
+        skillLayer.hidden = false;
+        skillStatus.classList.remove('error');
+        skillStatus.textContent = '';
+        if (skillMarkdown) return;
+        skillText.textContent = '正在读取…';
+        try {
+          const res = await fetch(origin + '/dsh-pet-7340/pet-skill');
+          if (!res.ok) throw new Error('读取失败');
+          skillMarkdown = await res.text();
+          skillText.textContent = skillMarkdown;
+        } catch (error) {
+          skillText.textContent = '';
+          skillStatus.textContent = '读取技能文档失败：' + error.message;
+          skillStatus.classList.add('error');
+        }
+      };
+      closeSkill.onclick = closeSkillLayer;
+      skillLayer.onclick = (event) => {
+        if (event.target === skillLayer) closeSkillLayer();
+      };
+      copySkill.onclick = async () => {
+        if (!skillMarkdown) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(skillMarkdown);
+          } else {
+            const area = document.createElement('textarea');
+            area.value = skillMarkdown;
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand('copy');
+            area.remove();
+          }
+          skillStatus.classList.remove('error');
+          skillStatus.textContent = '已复制。贴到和 Agent 的对话里即可。';
+        } catch (error) {
+          skillStatus.textContent = '复制失败：' + error.message;
+          skillStatus.classList.add('error');
+        }
+      };
+
       fetch(origin + '/dsh-pet-7340/pet-config')
         .then((res) => res.json())
         .then((data) => {
           pets = data.pets || [];
-          template = data.template;
+          packs = data.packs || [];
           for (const corner of data.corners || []) {
             const option = document.createElement('option');
             option.value = corner.value;

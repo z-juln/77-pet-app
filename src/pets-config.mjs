@@ -38,6 +38,7 @@ export function normalizeUserPet(pet, baseById = {}) {
         : pet.whisperUseModel !== false,
     workStatusEnabled: pet?.workStatusEnabled ?? base.workStatusEnabled ?? true,
     fixedEnabled: pet?.fixedEnabled ?? base.fixedEnabled ?? false,
+    pack: typeof pet?.pack === 'string' && pet.pack.trim() ? pet.pack.trim() : base.pack || '',
     position: {
       corner,
       marginX: Number.isFinite(Number(position.marginX)) ? Math.round(Number(position.marginX)) : 24,
