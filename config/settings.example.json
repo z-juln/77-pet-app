@@ -2,5 +2,6 @@
   "apiKey": "",
   "baseUrl": "https://api.chatanywhere.tech/v1",
   "model": "deepseek-v4-flash",
-  "whisperStartupDelaySec": 8
+  "whisperStartupDelaySec": 8,
+  "autoCheckUpdate": true
 }

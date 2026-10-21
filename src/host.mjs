@@ -6,10 +6,11 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { copyFileSync, createReadStream, existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { applyDownloadedUpdate } from './apply-update.mjs';
 import { parseJsonc } from './jsonc.mjs';
 import { completeChat, extractChatImage, memeCatalog, validateApiCredentials } from './llm.mjs';
 import {
@@ -19,6 +20,7 @@ import {
   normalizeUserPet,
   validateUserPets,
 } from './pets-config.mjs';
+import { compareVersions, downloadToFile, fetchLatestRelease, pickReleaseAsset } from './update.mjs';
 import { isApiKeyError, pickLocalWhisper } from './whisper-fallback.mjs';
 
 const require = createRequire(import.meta.url);
@@ -127,6 +129,8 @@ function loadSettings() {
     baseUrl: process.env.DSH_PET_API_BASE || saved.baseUrl || 'https://api.chatanywhere.tech/v1',
     model: process.env.DSH_PET_MODEL || saved.model || 'deepseek-v4-flash',
     whisperStartupDelaySec: Number(saved.whisperStartupDelaySec ?? 8),
+    autoCheckUpdate: saved.autoCheckUpdate !== false,
+    updateSeenVersion: typeof saved.updateSeenVersion === 'string' ? saved.updateSeenVersion : '',
   };
 }
 
@@ -138,6 +142,9 @@ function saveSettings(next) {
     baseUrl: (next.baseUrl || current.baseUrl).trim(),
     model: (next.model || current.model).trim(),
     whisperStartupDelaySec: current.whisperStartupDelaySec,
+    autoCheckUpdate: typeof next.autoCheckUpdate === 'boolean' ? next.autoCheckUpdate : current.autoCheckUpdate,
+    updateSeenVersion:
+      typeof next.updateSeenVersion === 'string' ? next.updateSeenVersion : current.updateSeenVersion,
   };
   const { userFile } = settingsFiles();
   mkdirSync(path.dirname(userFile), { recursive: true });
@@ -380,6 +387,7 @@ export async function start(options = {}) {
   let shuttingDown = false;
   let expectExit = false;
   let whisperTimer = null;
+  let updateTimer = null;
   let announcedKeyFallback = false;
   const fallbackBook = readJson(path.join(ROOT, 'src', 'whisper-fallbacks.json'), {});
 
@@ -540,6 +548,122 @@ export async function start(options = {}) {
     startHelper();
   };
 
+  const currentVersion = readJson(path.join(ROOT, 'package.json'), {}).version || '0.0.0';
+  const updateState = {
+    latest: null,
+    phase: 'idle',
+    message: '',
+    percent: 0,
+    checking: null,
+  };
+
+  const updateSnapshot = () => {
+    const settings = loadSettings();
+    const latest = updateState.latest;
+    const hasUpdate = Boolean(latest && compareVersions(latest.version, currentVersion) > 0);
+    const unread = Boolean(settings.autoCheckUpdate && hasUpdate && settings.updateSeenVersion !== latest.version);
+    return {
+      current: currentVersion,
+      latest: latest?.version || '',
+      hasUpdate,
+      autoCheck: settings.autoCheckUpdate,
+      unread,
+      phase: updateState.phase,
+      message: updateState.message,
+      percent: updateState.percent,
+      releaseUrl: latest?.htmlUrl || 'https://github.com/z-juln/dsh-pet-app/releases/latest',
+    };
+  };
+
+  const notifyUpdate = () => {
+    options.onUpdateState?.(updateSnapshot());
+  };
+
+  const checkForUpdate = async () => {
+    if (updateState.phase === 'downloading' || updateState.phase === 'installing') return updateSnapshot();
+    if (updateState.checking) return updateState.checking;
+    updateState.phase = 'checking';
+    updateState.message = '';
+    notifyUpdate();
+    updateState.checking = (async () => {
+      try {
+        const release = await fetchLatestRelease();
+        updateState.latest = release;
+        updateState.phase = 'idle';
+        const snap = updateSnapshot();
+        updateState.message = snap.hasUpdate ? '发现新版本 ' + snap.latest : release ? '已是最新版本' : '还没有发布版本';
+        notifyUpdate();
+        return updateSnapshot();
+      } catch (error) {
+        updateState.phase = 'error';
+        const raw = error instanceof Error ? error.message : String(error);
+        updateState.message = /timeout|aborted/i.test(raw)
+          ? '检查更新超时'
+          : /403|429/.test(raw)
+            ? '检查更新过于频繁，请稍后再试'
+            : raw;
+        notifyUpdate();
+        return updateSnapshot();
+      } finally {
+        updateState.checking = null;
+      }
+    })();
+    return updateState.checking;
+  };
+
+  const installUpdate = async () => {
+    const snap = updateSnapshot();
+    if (!snap.hasUpdate || !updateState.latest) return { ...snap, ok: false, message: '没有可安装的新版本' };
+    if (!options.packaged) {
+      return {
+        ...snap,
+        ok: false,
+        message: '当前是开发运行，不能自动替换应用。请到 Release 页面下载安装包。',
+      };
+    }
+    if (updateState.phase === 'downloading' || updateState.phase === 'installing') {
+      return { ...snap, ok: false, message: '正在更新' };
+    }
+    const asset = pickReleaseAsset(updateState.latest.assets, process.platform, process.arch);
+    if (!asset) return { ...updateSnapshot(), ok: false, message: '这个系统没有对应的安装包' };
+    const dest = path.join(tmpdir(), 'dsh-pet-update-' + asset.name.replace(/[^\w.\-]+/g, '_'));
+    updateState.phase = 'downloading';
+    updateState.percent = 0;
+    updateState.message = '正在下载';
+    notifyUpdate();
+    let lastPercent = -1;
+    try {
+      await downloadToFile(asset.browser_download_url, dest, {
+        onProgress(percent) {
+          if (percent !== 100 && percent - lastPercent < 2) return;
+          lastPercent = percent;
+          updateState.percent = percent;
+          updateState.message = '正在下载 ' + percent + '%';
+          notifyUpdate();
+        },
+      });
+      updateState.phase = 'installing';
+      updateState.message = '正在安装，完成后会自动重启';
+      notifyUpdate();
+      await applyDownloadedUpdate({
+        file: dest,
+        platform: process.platform,
+        execPath: options.execPath || process.execPath,
+        relaunch: () => onRelaunch?.(),
+      });
+      updateState.phase = 'done';
+      updateState.message = '安装完成，正在重启';
+      notifyUpdate();
+      return { ...updateSnapshot(), ok: true, message: updateState.message };
+    } catch (error) {
+      updateState.phase = 'error';
+      const raw = error instanceof Error ? error.message : String(error);
+      updateState.message = /timeout|aborted/i.test(raw) ? '下载超时' : raw;
+      notifyUpdate();
+      return { ...updateSnapshot(), ok: false, message: updateState.message };
+    }
+  };
+
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -625,6 +749,37 @@ export async function start(options = {}) {
           model: saved.model,
           apiKey: saved.apiKey,
         });
+        return;
+      }
+      if (rest === 'app-update' && method === 'GET') {
+        sendJson(res, 200, updateSnapshot());
+        return;
+      }
+      if (rest === 'app-update/check' && method === 'POST') {
+        sendJson(res, 200, await checkForUpdate());
+        return;
+      }
+      if (rest === 'app-update/auto-check' && method === 'POST') {
+        const parsed = JSON.parse(body || '{}');
+        const enabled = parsed.enabled !== false;
+        saveSettings({ autoCheckUpdate: enabled });
+        if (enabled) {
+          sendJson(res, 200, await checkForUpdate());
+        } else {
+          notifyUpdate();
+          sendJson(res, 200, updateSnapshot());
+        }
+        return;
+      }
+      if (rest === 'app-update/seen' && method === 'POST') {
+        const latest = updateState.latest?.version;
+        if (latest) saveSettings({ updateSeenVersion: latest });
+        notifyUpdate();
+        sendJson(res, 200, updateSnapshot());
+        return;
+      }
+      if (rest === 'app-update/install' && method === 'POST') {
+        sendJson(res, 200, await installUpdate());
         return;
       }
       if (rest === 'balance' && method === 'POST') {
@@ -764,7 +919,17 @@ export async function start(options = {}) {
 
   const port = await listen(server, options.port ?? 3080);
   console.log(`[dsh-pet] 宿主 http://127.0.0.1:${port}/dsh-pet-7340/config`);
+  const scheduleUpdateCheck = () => {
+    if (options.checkUpdates === false) return;
+    const run = () => {
+      if (loadSettings().autoCheckUpdate) void checkForUpdate();
+    };
+    setTimeout(run, 4000);
+    updateTimer = setInterval(run, 60 * 60 * 1000);
+  };
+
   scheduleWhisper();
+  scheduleUpdateCheck();
   if (launchHelper) startHelper();
 
   async function stop(reason = 'stop') {
@@ -773,6 +938,7 @@ export async function start(options = {}) {
     expectExit = true;
     console.log('[dsh-pet] 收尾（' + reason + '）');
     if (whisperTimer) clearTimeout(whisperTimer);
+    if (updateTimer) clearInterval(updateTimer);
     if (helper && helper.exitCode === null) {
       helper.kill('SIGTERM');
       await new Promise((resolve) => helper.once('exit', resolve));

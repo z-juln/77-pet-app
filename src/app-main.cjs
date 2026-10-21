@@ -10,9 +10,14 @@ async function boot() {
   const { start } = await import(pathToFileURL(path.join(__dirname, 'host.mjs')).href);
   const server = await start({
     launchHelper: false,
+    packaged: app.isPackaged,
+    execPath: process.execPath,
     onRelaunch() {
       app.relaunch();
       app.exit(0);
+    },
+    onUpdateState(state) {
+      if (typeof global.__dshPetOnUpdate === 'function') global.__dshPetOnUpdate(state);
     },
   });
   process.env.DSH_PET_CONFIG_URL = `http://127.0.0.1:${server.port}/dsh-pet-7340/config`;

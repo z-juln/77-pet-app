@@ -28,6 +28,49 @@
       a:hover {
         text-decoration: underline;
       }
+      .version {
+        margin-top: 4px;
+      }
+      .changelog {
+        margin-left: 12px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin: 4px 0 8px;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        background: #2b2b2b;
+        color: #fff;
+        padding: 8px 14px;
+        font-size: 14px;
+      }
+      button[hidden] {
+        display: none;
+      }
+      button:disabled {
+        opacity: 0.55;
+      }
+      .status {
+        min-height: 22px;
+        margin: 0 0 12px;
+        color: #6b645c;
+        font-size: 13px;
+      }
+      .checkline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .note {
+        margin: 8px 0 0;
+        color: #6b645c;
+        font-size: 12px;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
@@ -49,5 +92,124 @@
         >github.com/z-juln/dsh-pet-app</a
       >
     </p>
+    <p class="version">
+      当前版本 <span id="current">…</span>
+      <a
+        class="changelog"
+        href="https://github.com/z-juln/dsh-pet-app/blob/master/CHANGELOG.md"
+        target="_blank"
+        rel="noopener noreferrer"
+        >查看更新日志</a
+      >
+    </p>
+    <p class="version" id="latestRow" hidden>最新版本 <span id="latest"></span></p>
+    <div class="actions">
+      <button id="check" type="button">检查新版本</button>
+      <button id="install" type="button" hidden>更新</button>
+    </div>
+    <p class="status" id="status"></p>
+    <label class="checkline">
+      <input id="autoOff" type="checkbox" />
+      关闭自动检测更新
+    </label>
+    <p class="note">关闭后不再自动检查，菜单栏和「关于」上的红点也会消失。仍可以手动检查。有新版本时点「更新」，会下载安装包并自动替换，然后重启。</p>
+    <script>
+      const origin = (window.petSettings && window.petSettings.origin) || 'http://127.0.0.1:3080';
+      const current = document.getElementById('current');
+      const latestRow = document.getElementById('latestRow');
+      const latest = document.getElementById('latest');
+      const check = document.getElementById('check');
+      const install = document.getElementById('install');
+      const status = document.getElementById('status');
+      const autoOff = document.getElementById('autoOff');
+      let seenVersion = '';
+
+      function render(data) {
+        current.textContent = data.current || '—';
+        latest.textContent = data.latest || '';
+        latestRow.hidden = !data.latest;
+        install.hidden = !data.hasUpdate;
+        autoOff.checked = data.autoCheck === false;
+        const busy = data.phase === 'checking' || data.phase === 'downloading' || data.phase === 'installing';
+        check.disabled = busy;
+        install.disabled = busy;
+        status.textContent = data.message || '';
+      }
+
+      async function readStatus() {
+        const response = await fetch(origin + '/dsh-pet-7340/app-update');
+        return response.json();
+      }
+
+      async function refresh() {
+        const data = await readStatus();
+        render(data);
+        if (data.hasUpdate && data.latest && seenVersion !== data.latest) {
+          const seen = await fetch(origin + '/dsh-pet-7340/app-update/seen', { method: 'POST' });
+          seenVersion = data.latest;
+          render(await seen.json());
+        }
+      }
+
+      check.addEventListener('click', async () => {
+        check.disabled = true;
+        status.textContent = '正在检查…';
+        try {
+          const response = await fetch(origin + '/dsh-pet-7340/app-update/check', { method: 'POST' });
+          const data = await response.json();
+          render(data);
+          if (data.hasUpdate && data.latest && seenVersion !== data.latest) {
+            const seen = await fetch(origin + '/dsh-pet-7340/app-update/seen', { method: 'POST' });
+            seenVersion = data.latest;
+            render(await seen.json());
+          }
+        } catch (error) {
+          status.textContent = '检查失败';
+          check.disabled = false;
+        }
+      });
+
+      install.addEventListener('click', async () => {
+        install.disabled = true;
+        check.disabled = true;
+        status.textContent = '正在下载并安装，完成后会自动重启…';
+        const timer = setInterval(async () => {
+          try {
+            render(await readStatus());
+          } catch {
+            /* 安装完成时宿主会退出 */
+          }
+        }, 700);
+        try {
+          const response = await fetch(origin + '/dsh-pet-7340/app-update/install', { method: 'POST' });
+          render(await response.json());
+        } catch {
+          status.textContent = '正在重启…';
+        } finally {
+          clearInterval(timer);
+        }
+      });
+
+      autoOff.addEventListener('change', async () => {
+        const enabled = !autoOff.checked;
+        try {
+          const response = await fetch(origin + '/dsh-pet-7340/app-update/auto-check', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ enabled }),
+          });
+          render(await response.json());
+        } catch {
+          status.textContent = '保存失败';
+        }
+      });
+
+      refresh().catch(() => {
+        status.textContent = '无法读取版本信息';
+      });
+      setInterval(() => {
+        refresh().catch(() => {});
+      }, 4000);
+    </script>
   </body>
 </html>
