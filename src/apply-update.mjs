@@ -11,6 +11,24 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Electron 会把 app.asar 当成目录。打包后的进程若用 fs.rm 删 .app，
+ * 会在 app.asar 上报 ENOTDIR。这里改走系统 rm，不经过被改写的 fs。
+ */
+export async function removeTree(target) {
+  if (process.platform === 'win32') {
+    const previous = process.noAsar;
+    process.noAsar = true;
+    try {
+      rmSync(target, { recursive: true, force: true });
+    } finally {
+      process.noAsar = previous;
+    }
+    return;
+  }
+  await execFileAsync('/bin/rm', ['-rf', '--', target]);
+}
+
 export function macAppBundle(execPath) {
   const marker = '.app/Contents/MacOS/';
   const index = String(execPath || '').replaceAll('\\', '/').indexOf(marker);
@@ -29,12 +47,12 @@ export async function applyDownloadedUpdate({ file, platform, execPath, relaunch
       const appName = readdirSync(mount).find((name) => name.endsWith('.app'));
       if (!appName) throw new Error('安装镜像里没有应用');
       await execFileAsync('ditto', [path.join(mount, appName), staging]);
-      rmSync(bundle, { recursive: true, force: true });
+      await removeTree(bundle);
       await execFileAsync('ditto', [staging, bundle]);
       await execFileAsync('xattr', ['-dr', 'com.apple.quarantine', bundle]).catch(() => {});
     } finally {
       await execFileAsync('hdiutil', ['detach', mount, '-force']).catch(() => {});
-      rmSync(staging, { recursive: true, force: true });
+      await removeTree(staging).catch(() => {});
     }
     relaunch?.();
     return;

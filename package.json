@@ -1,6 +1,6 @@
 {
   "name": "dsh-pet-app",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "description": "独立桌宠（macOS / Windows）。动画与交互来自 https://github.com/PC2005-cloud/dsh-pet ，素材禁止商用。",
   "author": "dsh-pet-app",

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
-import { macAppBundle } from './apply-update.mjs';
+import { macAppBundle, removeTree } from './apply-update.mjs';
 import { compareVersions, fetchLatestRelease, parseExpandedAssets, pickReleaseAsset } from './update.mjs';
 
 test('版本号按数字段比较，并忽略 v 前缀', () => {
@@ -28,6 +31,15 @@ test('按系统和架构挑选 Release 安装包', () => {
 test('只有一个 dmg 时 macOS 两个架构都用它', () => {
   const assets = [{ name: 'DSH Pet-0.0.2.dmg', browser_download_url: 'https://example.com/only.dmg' }];
   assert.equal(pickReleaseAsset(assets, 'darwin', 'arm64').name, 'DSH Pet-0.0.2.dmg');
+});
+
+test('删除应用目录时把 app.asar 当普通文件', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-pet-rm-'));
+  const resources = path.join(dir, 'Contents', 'Resources');
+  mkdirSync(resources, { recursive: true });
+  writeFileSync(path.join(resources, 'app.asar'), 'not-a-directory');
+  await removeTree(dir);
+  assert.equal(existsSync(dir), false);
 });
 
 test('从可执行文件路径还原 macOS 应用包', () => {
