@@ -2,7 +2,7 @@
 // 解析 S 的余额叶子（host 的 BalanceResult）→ 客户端视图 → 档位计算 → 气泡行数据。
 // 取数不在本模块：余额由 host 定时器刷新并写进 /state（两端共享同一份结果），本模块只做纯解析/展示。
 // 不依赖 React/DOM；host/balance/ 的 BalanceResult 与本模块的 RawBalanceResult 同构（HTTP 契约两端
-// 各自声明，host 无需 import 本目录——DSH 单文件加载约束）。
+// 各自声明，host 无需 import 本目录—— 单文件加载约束）。
 //
 // **本模块不认识任何服务商**：只认叶子里的 `shape`（展示形态）与数据自带的业务事实
 // （各窗口满额度、滚动窗时长、档位基准、峰谷档位）。服务商名字只用于日志与去重键。

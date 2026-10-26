@@ -1,5 +1,5 @@
 // 工作状态联动（workStatus）——浏览器侧纯逻辑（src/shared 单一来源）。
-// host 侧（src/host/work-status.ts）有自己的自包含实现（DSH 单文件加载约束，host 不 import 本目录），
+// host 侧（src/host/work-status.ts）有自己的自包含实现（ 单文件加载约束，host 不 import 本目录），
 // 负责监听 session/event 聚合成快照并写进 /state 的 sections.workStatus；本模块只做：
 //   档位常量（WORK_STATUS_STATES / WORK_STATUS_INDEX，与 events.workStatus 数组索引一致）+ 叶子解析。
 //   气泡文案不在代码里：浏览器直接读配置 events.workStatusTexts（host 不内置文案）。

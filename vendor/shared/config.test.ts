@@ -42,7 +42,7 @@ const readSource = (rel: string): string => readFileSync(fileURLToPath(new URL(r
 
 describe('flattenConfigPets —— 成品 → 渲染列表的唯一填充点', () => {
   test('真实内置默认配置：每只实例的条目级字段齐全（含 physics.throwPower）', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'dsh-pet-flatten-'));
+    const dir = mkdtempSync(join(tmpdir(), 'pet77-flatten-'));
     try {
       const merged = readAllConfig({
         defaultFile: fileURLToPath(new URL('../../assets/config.jsonc', import.meta.url)),
@@ -177,11 +177,11 @@ describe('flattenConfigPets —— 成品 → 渲染列表的唯一填充点', (
       /modelSelectionValid\(wm\)/.test(hostConfig) && /modelSelectionValid\(cm\)/.test(hostConfig),
       'saveUserConfig 必须用 modelSelectionValid 校验 whisperModel / chatModel（与读取侧同一套规则）',
     );
-    // 下拉框的数据源必须与 DSH 的模型选择器同源：走宿主 llm 服务（listProviders / listModels），
-    // 不得另立一份手写的服务商清单——那会随 DSH 支持的服务商漂移。
+    // 下拉框的数据源必须与  的模型选择器同源：走宿主 llm 服务（listProviders / listModels），
+    // 不得另立一份手写的服务商清单——那会随  支持的服务商漂移。
     assert.ok(
       /listProviders/.test(host) && /listModels/.test(host),
-      'GET /models 必须取宿主 llm 服务的 listProviders / listModels（与 DSH 模型选择器同源）',
+      'GET /models 必须取宿主 llm 服务的 listProviders / listModels（与  模型选择器同源）',
     );
   });
 });

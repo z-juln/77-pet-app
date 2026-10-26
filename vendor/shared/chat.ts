@@ -1,5 +1,5 @@
 // 对话输入弹窗（src/shared，浏览器 bundle 与桌面 shared-core 共用）：
-//  - 纯逻辑：类型 / 发送（走 host /dsh-pet-7340/chat，host 是 memory.json 唯一读写方
+//  - 纯逻辑：类型 / 发送（走 host /77-pet/chat，host 是 memory.json 唯一读写方
 //    —— 浏览器与桌面同一实例天然共享同一份记忆，两端只是不同显示方式）；
 //  - CHAT_CSS + mountChatDialog：自 menu.ts 之后第二个「两端共用同一份 DOM」例外
 //    （菜单组件证明可行的模式：浏览器页面与桌面透明窗渲染完全一致的对话框）。
@@ -11,7 +11,7 @@
 //    叫醒一拍，让结果 0 延迟可见（见各端实现）。
 // 记忆语义：memory.json 全存不删；host 每次请求只截尾部 chatMemoryRounds 轮进上下文。
 
-/** POST /dsh-pet-7340/chat?pet=<id> {text}：只回是否受理（回复走 /state 的 pets.<id>.say） */
+/** POST /77-pet/chat?pet=<id> {text}：只回是否受理（回复走 /state 的 pets.<id>.say） */
 export type ChatSendState =
   | { ok: true }
   | { ok: false; reason: 'provider-missing' | 'generate-error' | 'config-error' | 'bad-request'; message?: string };
@@ -28,7 +28,7 @@ export async function sendChat(baseUrl: string, text: string): Promise<ChatSendS
     signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
   });
   const raw: unknown = await res.json().catch(() => null);
-  if (!raw || typeof raw !== 'object') throw new Error('dsh-pet: 对话响应非法');
+  if (!raw || typeof raw !== 'object') throw new Error('77-pet: 对话响应非法');
   const o = raw as Record<string, unknown>;
   if (o.ok !== true) {
     return {
@@ -48,19 +48,19 @@ export async function sendChat(baseUrl: string, text: string): Promise<ChatSendS
  *  随输入自动增宽（封顶 340px），到上限后自动折行增高；回车发送，Esc 或点外关闭。
  *  宽度由 JS 按文本测量覆盖根元素宽度。 */
 export const CHAT_CSS = [
-  '.dsh-pet-chat{position:fixed;z-index:2147483001;width:160px;max-width:80vw;',
+  '.pet77-chat{position:fixed;z-index:2147483001;width:160px;max-width:80vw;',
   'background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.12);border-radius:10px;',
   'box-shadow:0 10px 32px rgba(0,0,0,.22);color:#2b2b2b;font-size:14px;line-height:1.5;',
   // 字体与桌宠气泡同款（上首软糖体，两端均已注入 @font-face），风格一致不显正式
   "font-family:'ShangshouSoftCandy','Yuanti SC','YouYuan','幼圆','Comic Sans MS','PingFang SC','Microsoft YaHei',sans-serif;",
   'user-select:none}',
-  '.dsh-pet-chat *{box-sizing:border-box}',
-  '.dsh-pet-chat-input{display:block;width:100%;border:none;outline:none;background:transparent;',
+  '.pet77-chat *{box-sizing:border-box}',
+  '.pet77-chat-input{display:block;width:100%;border:none;outline:none;background:transparent;',
   'padding:8px 11px 9px;font-size:14px;line-height:1.45;color:#2b2b2b;font-family:inherit;',
   'resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}',
-  '.dsh-pet-chat-input::placeholder{color:rgba(43,43,43,.45)}',
-  '.dsh-pet-chat-input:disabled{opacity:.55}',
-  '.dsh-pet-chat-err{color:#d94f3d;font-size:12px;padding:0 12px 8px;white-space:pre-wrap;overflow-wrap:anywhere}',
+  '.pet77-chat-input::placeholder{color:rgba(43,43,43,.45)}',
+  '.pet77-chat-input:disabled{opacity:.55}',
+  '.pet77-chat-err{color:#d94f3d;font-size:12px;padding:0 12px 8px;white-space:pre-wrap;overflow-wrap:anywhere}',
 ].join('');
 
 /** 输入框宽度自适应参数：初始小宽 → 随文本增宽 → 封顶后折行增高 */
@@ -73,8 +73,8 @@ function injectChatCss(): void {
   if (chatCssInjected || typeof document === 'undefined') return;
   chatCssInjected = true;
   const tag = document.createElement('style');
-  tag.dataset.plugin = 'dsh-pet';
-  tag.dataset.pluginCss = 'dsh-pet/chat';
+  tag.dataset.plugin = '77-pet';
+  tag.dataset.pluginCss = '77-pet/chat';
   tag.textContent = CHAT_CSS;
   document.head.appendChild(tag);
 }
@@ -97,7 +97,7 @@ export interface ChatDialogMount {
  *  约束到该矩形内即可完整显示，**窗口/宠物零移动零闪帧**。 */
 export function mountChatDialog(opts: {
   petId: string;
-  /** 端点基址：浏览器默认相对 /dsh-pet-7340/chat；桌面传绝对 URL（file:// 页面需绝对） */
+  /** 端点基址：浏览器默认相对 /77-pet/chat；桌面传绝对 URL（file:// 页面需绝对） */
   baseUrl?: string;
   x: number;
   y: number;
@@ -110,7 +110,7 @@ export function mountChatDialog(opts: {
 }): ChatDialogMount {
   injectChatCss();
   const { petId, x, y, onSent, onClose, clamp } = opts;
-  const baseUrl = opts.baseUrl ?? '/dsh-pet-7340/chat';
+  const baseUrl = opts.baseUrl ?? '/77-pet/chat';
   const withPet = baseUrl + '?pet=' + encodeURIComponent(petId);
   const c =
     clamp && Number.isFinite(clamp.x + clamp.y + clamp.w + clamp.h)
@@ -118,10 +118,10 @@ export function mountChatDialog(opts: {
       : { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
 
   const root = document.createElement('div');
-  root.className = 'dsh-pet-chat';
+  root.className = 'pet77-chat';
 
   const input = document.createElement('textarea');
-  input.className = 'dsh-pet-chat-input';
+  input.className = 'pet77-chat-input';
   input.placeholder = '说点什么…';
   input.maxLength = 2000;
   input.rows = 1;
@@ -145,7 +145,7 @@ export function mountChatDialog(opts: {
   resizeInput(); // 以占位符为初始宽度
 
   const err = document.createElement('div');
-  err.className = 'dsh-pet-chat-err';
+  err.className = 'pet77-chat-err';
   err.style.display = 'none';
 
   root.appendChild(input);

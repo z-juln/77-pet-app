@@ -16,11 +16,11 @@ test('版本号按数字段比较，并忽略 v 前缀', () => {
 
 test('按系统和架构挑选 Release 安装包', () => {
   const assets = [
-    { name: 'DSH Pet-0.0.2-arm64.dmg', browser_download_url: 'https://example.com/arm.dmg' },
-    { name: 'DSH Pet-0.0.2.dmg', browser_download_url: 'https://example.com/intel.dmg' },
-    { name: 'DSH Pet-0.0.2-arm64.dmg.blockmap', browser_download_url: 'https://example.com/arm.blockmap' },
-    { name: 'DSH Pet Setup 0.0.2.exe', browser_download_url: 'https://example.com/setup.exe' },
-    { name: 'DSH.Pet-0.0.2-arm64.zip', browser_download_url: 'https://example.com/arm.zip' },
+    { name: '77 Pet-0.0.2-arm64.dmg', browser_download_url: 'https://example.com/arm.dmg' },
+    { name: '77 Pet-0.0.2.dmg', browser_download_url: 'https://example.com/intel.dmg' },
+    { name: '77 Pet-0.0.2-arm64.dmg.blockmap', browser_download_url: 'https://example.com/arm.blockmap' },
+    { name: '77 Pet Setup 0.0.2.exe', browser_download_url: 'https://example.com/setup.exe' },
+    { name: '77.Pet-0.0.2-arm64.zip', browser_download_url: 'https://example.com/arm.zip' },
   ];
   assert.equal(pickReleaseAsset(assets, 'darwin', 'arm64').browser_download_url, 'https://example.com/arm.dmg');
   assert.equal(pickReleaseAsset(assets, 'darwin', 'x64').browser_download_url, 'https://example.com/intel.dmg');
@@ -29,12 +29,12 @@ test('按系统和架构挑选 Release 安装包', () => {
 });
 
 test('只有一个 dmg 时 macOS 两个架构都用它', () => {
-  const assets = [{ name: 'DSH Pet-0.0.2.dmg', browser_download_url: 'https://example.com/only.dmg' }];
-  assert.equal(pickReleaseAsset(assets, 'darwin', 'arm64').name, 'DSH Pet-0.0.2.dmg');
+  const assets = [{ name: '77 Pet-0.0.2.dmg', browser_download_url: 'https://example.com/only.dmg' }];
+  assert.equal(pickReleaseAsset(assets, 'darwin', 'arm64').name, '77 Pet-0.0.2.dmg');
 });
 
 test('删除应用目录时把 app.asar 当普通文件', async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-pet-rm-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'pet77-rm-'));
   const resources = path.join(dir, 'Contents', 'Resources');
   mkdirSync(resources, { recursive: true });
   writeFileSync(path.join(resources, 'app.asar'), 'not-a-directory');
@@ -44,8 +44,8 @@ test('删除应用目录时把 app.asar 当普通文件', async () => {
 
 test('从可执行文件路径还原 macOS 应用包', () => {
   assert.equal(
-    macAppBundle('/Applications/DSH Pet.app/Contents/MacOS/DSH Pet'),
-    '/Applications/DSH Pet.app',
+    macAppBundle('/Applications/77 Pet.app/Contents/MacOS/77 Pet'),
+    '/Applications/77 Pet.app',
   );
   assert.equal(macAppBundle('/usr/local/bin/electron'), null);
 });
@@ -62,12 +62,12 @@ test('API 被限流时改从 Release 页面读取安装包', async () => {
     if (href.endsWith('/releases/latest')) {
       return new Response(null, {
         status: 302,
-        headers: { location: 'https://github.com/z-juln/dsh-pet-app/releases/tag/0.0.2' },
+        headers: { location: 'https://github.com/z-juln/77-pet-app/releases/tag/0.0.2' },
       });
     }
     return new Response(
-      '<a href="/z-juln/dsh-pet-app/releases/download/0.0.2/DSH.Pet-0.0.2-arm64.dmg">a</a>' +
-        '<a href="/z-juln/dsh-pet-app/releases/download/0.0.2/DSH.Pet-0.0.2-arm64.dmg.blockmap">b</a>',
+      '<a href="/z-juln/77-pet-app/releases/download/0.0.2/77.Pet-0.0.2-arm64.dmg">a</a>' +
+        '<a href="/z-juln/77-pet-app/releases/download/0.0.2/77.Pet-0.0.2-arm64.dmg.blockmap">b</a>',
       { status: 200 },
     );
   });
@@ -75,23 +75,23 @@ test('API 被限流时改从 Release 页面读取安装包', async () => {
   assert.equal(release.assets.length, 1);
   assert.equal(
     release.assets[0].browser_download_url,
-    'https://github.com/z-juln/dsh-pet-app/releases/download/0.0.2/DSH.Pet-0.0.2-arm64.dmg',
+    'https://github.com/z-juln/77-pet-app/releases/download/0.0.2/77.Pet-0.0.2-arm64.dmg',
   );
 });
 
 test('页面里的下载链接会去掉校验文件', () => {
   const assets = parseExpandedAssets(
-    '<a href="/z-juln/dsh-pet-app/releases/download/0.0.2/DSH.Pet.Setup.0.0.2.exe">x</a>',
+    '<a href="/z-juln/77-pet-app/releases/download/0.0.2/77.Pet.Setup.0.0.2.exe">x</a>',
   );
-  assert.equal(assets[0].name, 'DSH.Pet.Setup.0.0.2.exe');
+  assert.equal(assets[0].name, '77.Pet.Setup.0.0.2.exe');
 });
 
 test('解析最新 Release 的版本号和安装包', async () => {
   const release = await fetchLatestRelease(async () =>
     Response.json({
       tag_name: 'v0.0.2',
-      html_url: 'https://github.com/z-juln/dsh-pet-app/releases/tag/0.0.2',
-      assets: [{ name: 'DSH Pet-0.0.2-arm64.dmg', browser_download_url: 'https://example.com/a.dmg' }],
+      html_url: 'https://github.com/z-juln/77-pet-app/releases/tag/0.0.2',
+      assets: [{ name: '77 Pet-0.0.2-arm64.dmg', browser_download_url: 'https://example.com/a.dmg' }],
     }),
   );
   assert.equal(release.version, '0.0.2');

@@ -44,7 +44,7 @@ function normLeaf(value: unknown): StateLeaf | null {
  * 拉一次 /state。
  * 失败 / HTTP 非 2xx / 形状不对 → null（轮询侧静默重试，与其余轮询同一容错口径）。
  */
-export async function fetchState(baseUrl = '/dsh-pet-7340/state'): Promise<PollState | null> {
+export async function fetchState(baseUrl = '/77-pet/state'): Promise<PollState | null> {
   try {
     const res = await fetch(baseUrl, { cache: 'no-store' });
     if (!res.ok) return null;
@@ -141,7 +141,7 @@ export function readSay(leaf: StateLeaf): { text: string; image?: string } | nul
 
 /**
  * 类型收窄：工作状态叶子 → 快照（形状非法 → null，消费端跳过这一拍）。
- * 与余额不同，这里没有"手动"标记：工作状态永远由 DSH 事件驱动，没有用户主动要的那条路。
+ * 与余额不同，这里没有"手动"标记：工作状态永远由  事件驱动，没有用户主动要的那条路。
  */
 export function readWorkStatus(leaf: StateLeaf): WorkStatusSnapshot | null {
   return toWorkStatus(leaf.data);

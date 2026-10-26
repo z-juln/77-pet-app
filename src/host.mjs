@@ -1,5 +1,5 @@
 /**
- * 桌宠宿主：对 Electron 渲染层暴露与原版相同的 /dsh-pet-7340 接口，
+ * 桌宠宿主：对 Electron 渲染层暴露 /77-pet 接口，
  * 碎碎念和对话改走用户自己的 OpenAI 兼容接口。
  */
 import { spawn } from 'node:child_process';
@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { applyDownloadedUpdate } from './apply-update.mjs';
+import { GITEE_STALE_NOTE, catalogState, ensureDefaultPet, fetchPetCatalog, installCatalogPet } from './pet-catalog.mjs';
 import {
   assembleConfigEntries,
   basePets,
@@ -33,8 +34,8 @@ const require = createRequire(import.meta.url);
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const ASSETS = path.join(ROOT, 'vendor', 'assets');
 const HELPER_MAIN = path.join(ROOT, 'vendor', 'electron-helper', 'main.js');
-const USER_DIR = path.join(homedir(), '.dsh-pet-app');
-const ROUTE_PREFIX = '/dsh-pet-7340';
+const USER_DIR = path.join(homedir(), '.77-pet-app');
+const ROUTE_PREFIX = '/77-pet';
 
 const MIME = {
   '.webm': 'video/webm',
@@ -131,9 +132,9 @@ function loadSettings() {
   const saved = readJson(existsSync(userFile) ? userFile : projectFile, {});
   return {
     file: existsSync(userFile) ? userFile : projectFile,
-    apiKey: process.env.DSH_PET_API_KEY || saved.apiKey || '',
-    baseUrl: process.env.DSH_PET_API_BASE || saved.baseUrl || 'https://api.chatanywhere.tech/v1',
-    model: process.env.DSH_PET_MODEL || saved.model || 'deepseek-v4-flash',
+    apiKey: process.env.PET77_API_KEY || saved.apiKey || '',
+    baseUrl: process.env.PET77_API_BASE || saved.baseUrl || 'https://api.chatanywhere.tech/v1',
+    model: process.env.PET77_MODEL || saved.model || 'deepseek-v4-flash',
     whisperStartupDelaySec: Number(saved.whisperStartupDelaySec ?? 8),
     autoCheckUpdate: saved.autoCheckUpdate !== false,
     updateSeenVersion: typeof saved.updateSeenVersion === 'string' ? saved.updateSeenVersion : '',
@@ -162,11 +163,50 @@ function configEntries() {
   return assembleConfigEntries(ROOT, loadUserPets(), USER_DIR);
 }
 
+function packOrigin(name) {
+  const originPath = path.join(userPacksDir(USER_DIR), name + '.origin');
+  if (!existsSync(originPath)) return '';
+  return readFileSync(originPath, 'utf8').trim();
+}
+
+function catalogPrefsFile() {
+  return path.join(USER_DIR, 'catalog-source.json');
+}
+
+function readCatalogPrefs() {
+  const saved = readJson(catalogPrefsFile(), {});
+  return {
+    source: saved.source === 'gitee' ? 'gitee' : 'github',
+    askOnStall: saved.askOnStall !== false,
+  };
+}
+
+function writeCatalogPrefs(patch) {
+  const current = readCatalogPrefs();
+  const next = {
+    source: patch.source === 'gitee' ? 'gitee' : patch.source === 'github' ? 'github' : current.source,
+    askOnStall: typeof patch.askOnStall === 'boolean' ? patch.askOnStall : current.askOnStall,
+  };
+  mkdirSync(USER_DIR, { recursive: true });
+  writeFileSync(catalogPrefsFile(), JSON.stringify(next, null, 2) + '\n');
+  return next;
+}
+
 function packChoices() {
   return listPetPackNames(ROOT, USER_DIR).map((name) => {
     const pack = readPetPack(ROOT, name, USER_DIR);
     const pet = pack.config.pets[0] ?? { name, pack: name };
-    return { name, label: pet.name || name, template: pet, official: isBundledPack(ROOT, name) };
+    const previewPath = path.join(userPacksDir(USER_DIR), name, 'preview.png');
+    const origin = packOrigin(name);
+    return {
+      name,
+      label: pet.name || name,
+      template: pet,
+      official: isBundledPack(ROOT, name),
+      hasPreview: existsSync(previewPath),
+      origin,
+      localTemplate: origin === 'import',
+    };
   });
 }
 
@@ -181,6 +221,22 @@ function allRuntimePets() {
 
 function publicConfig() {
   return Object.fromEntries(Object.values(configEntries()).map((entry) => [entry.name, entry.config]));
+}
+
+async function installDefaultPet() {
+  const saved = readJson(petsUserPath(), null);
+  if (saved && Array.isArray(saved.pets) && saved.pets.length > 0) return;
+  try {
+    const pet = await ensureDefaultPet(USER_DIR);
+    if (!pet) return;
+    const pack = readPetPack(ROOT, pet.id, USER_DIR);
+    const template = { ...(pack.config.pets[0] || {}), pack: pet.id };
+    if (!String(template.id || '').trim()) template.id = 'main';
+    saveUserPets([normalizeUserPet(template, { [template.id]: template })]);
+    console.log('[77-pet] 已装上默认桌宠「' + (pet.label || pet.id) + '」');
+  } catch (error) {
+    console.error('[77-pet] 默认桌宠安装失败：' + (error instanceof Error ? error.message : error));
+  }
 }
 
 function petsUserPath() {
@@ -210,7 +266,9 @@ function saveUserPets(pets) {
 }
 
 function desktopPets(config) {
-  return (config.pets ?? []).filter((pet) => pet.display === 'desktop' || pet.display === 'both');
+  return (config.pets ?? []).filter(
+    (pet) => pet.hidden !== true && (pet.display === 'desktop' || pet.display === 'both'),
+  );
 }
 
 function leaf() {
@@ -383,7 +441,7 @@ function sendFile(req, res, file) {
 
 function homePage() {
   return `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>dsh-pet</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>77 Pet</title>
 <style>
   body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f3ee;color:#2b2b2b;font-family:"PingFang SC","Microsoft YaHei",sans-serif}
   main{max-width:520px;padding:32px}
@@ -394,7 +452,7 @@ function homePage() {
 <body><main>
   <h1>桌宠正在桌面上</h1>
   <p>右键宠物可以点播动作、碎碎念，或和它说话。菜单栏图标里可以改 API，或退出。</p>
-  <p>动画、物理和菜单来自 <a href="https://github.com/PC2005-cloud/dsh-pet">PC2005-cloud/dsh-pet</a>。素材允许开源使用，禁止商用。</p>
+  <p>素材禁止商用。</p>
   <p>配置文件：<code>${USER_DIR}</code></p>
 </main></body></html>`;
 }
@@ -450,7 +508,7 @@ export async function start(options = {}) {
     if (!picked) return { ok: false, reason: 'fallback-empty', message: '没有本地配文' };
     if (!quiet && !announcedKeyFallback) {
       announcedKeyFallback = true;
-      console.error('[dsh-pet] ' + reason + '，碎碎念改用本地配文');
+      console.error('[77-pet] ' + reason + '，碎碎念改用本地配文');
     }
     publishSay(petId, picked.text, picked.image);
     return { ok: true, fallback: true };
@@ -461,6 +519,7 @@ export async function start(options = {}) {
     const entry = entryForPet(petId);
     const config = entry?.config ?? {};
     const pet = (config.pets ?? []).find((item) => item.id === petId);
+    if (pet?.hidden === true) return { ok: false, reason: 'hidden', message: '这只桌宠已隐藏' };
     if (pet?.whisperUseModel === false) return showLocalWhisper(petId, '已关闭模型', true);
     if (!settings.apiKey) return showLocalWhisper(petId, '还没有填写 API Key');
     const pool = config.whisperImageEnabled === true ? memePool(entry) : [];
@@ -494,6 +553,8 @@ export async function start(options = {}) {
     const settings = loadSettings();
     const entry = entryForPet(petId);
     const config = entry?.config ?? {};
+    const pet = (config.pets ?? []).find((item) => item.id === petId);
+    if (pet?.hidden === true) return { ok: false, reason: 'hidden', message: '这只桌宠已隐藏' };
     if (!settings.apiKey) return { ok: false, reason: 'provider-missing', message: '还没有填写 API Key' };
     const rounds = Number(config.chatMemoryRounds);
     const history = memoryMessages(petId, Number.isFinite(rounds) ? rounds : 5);
@@ -531,10 +592,10 @@ export async function start(options = {}) {
     const arm = (delay) => {
       whisperTimer = setTimeout(async () => {
         try {
-          const pets = runtimePets().filter((pet) => pet.whisperEnabled !== false);
+          const pets = desktopPets({ pets: runtimePets() }).filter((pet) => pet.whisperEnabled !== false);
           for (const pet of pets) await generateWhisper(pet.id);
         } catch (error) {
-          console.error('[dsh-pet] 碎碎念失败：', error instanceof Error ? error.message : error);
+          console.error('[77-pet] 碎碎念失败：', error instanceof Error ? error.message : error);
         }
         arm(periodMs);
       }, delay);
@@ -543,7 +604,7 @@ export async function start(options = {}) {
   };
 
   const electronPath = () => {
-    const fromEnv = process.env.DSH_PET_ELECTRON_PATH;
+    const fromEnv = process.env.PET77_ELECTRON_PATH;
     if (fromEnv && existsSync(fromEnv)) return fromEnv;
     const resolved = require('electron');
     if (typeof resolved === 'string' && existsSync(resolved)) return resolved;
@@ -552,25 +613,27 @@ export async function start(options = {}) {
 
   const startHelper = () => {
     if (!launchHelper || shuttingDown) return;
-    const pets = desktopPets({ pets: runtimePets() });
-    if (pets.length === 0) {
-      console.warn('[dsh-pet] 没有 display 为 desktop/both 的宠物，不打开窗口');
-      return;
+    const all = runtimePets();
+    const pets = desktopPets({ pets: all });
+    if (pets.length === 0 && all.some((pet) => pet.hidden === true)) {
+      console.log('[77-pet] 桌宠都已隐藏，不创建窗口');
+    } else if (pets.length === 0) {
+      console.warn('[77-pet] 还没有桌宠，先打开菜单栏里的桌宠配置下载');
     }
     const env = { ...process.env };
     delete env.ELECTRON_RUN_AS_NODE;
-    env.DSH_PET_CONFIG_URL = `http://127.0.0.1:${port}/dsh-pet-7340/config`;
-    env.DSH_PET_HOST_PID = String(process.pid);
-    env.DSH_PET_SCALE = process.env.DSH_PET_SCALE || '1';
-    env.DSH_PET_PETS = JSON.stringify(pets.map((pet) => ({ id: pet.id, size: pet.size })));
-    env.DSH_PET_TRAY_ICON = trayIconPath();
+    env.PET77_CONFIG_URL = `http://127.0.0.1:${port}/77-pet/config`;
+    env.PET77_HOST_PID = String(process.pid);
+    env.PET77_SCALE = process.env.PET77_SCALE || '1';
+    env.PET77_PETS = JSON.stringify(pets.map((pet) => ({ id: pet.id, size: pet.size })));
+    env.PET77_TRAY_ICON = trayIconPath();
     expectExit = false;
     helper = spawn(electronPath(), [HELPER_MAIN], { env, stdio: 'inherit' });
     helper.on('exit', (code, signal) => {
-      console.log(`[dsh-pet] 窗口进程退出 code=${code} signal=${signal}`);
+      console.log(`[77-pet] 窗口进程退出 code=${code} signal=${signal}`);
       helper = null;
       if (!expectExit && !shuttingDown && code && code !== 0) {
-        console.error('[dsh-pet] 窗口异常退出，不再自动拉起。可重新运行 npm start。');
+        console.error('[77-pet] 窗口异常退出，不再自动拉起。可重新运行 npm start。');
       }
     });
   };
@@ -612,7 +675,7 @@ export async function start(options = {}) {
       phase: updateState.phase,
       message: updateState.message,
       percent: updateState.percent,
-      releaseUrl: latest?.htmlUrl || 'https://github.com/z-juln/dsh-pet-app/releases/latest',
+      releaseUrl: latest?.htmlUrl || 'https://github.com/z-juln/77-pet-app/releases/latest',
     };
   };
 
@@ -667,7 +730,7 @@ export async function start(options = {}) {
     }
     const asset = pickReleaseAsset(updateState.latest.assets, process.platform, process.arch);
     if (!asset) return { ...updateSnapshot(), ok: false, message: '这个系统没有对应的安装包' };
-    const dest = path.join(tmpdir(), 'dsh-pet-update-' + asset.name.replace(/[^\w.\-]+/g, '_'));
+    const dest = path.join(tmpdir(), 'pet77-update-' + asset.name.replace(/[^\w.\-]+/g, '_'));
     updateState.phase = 'downloading';
     updateState.percent = 0;
     updateState.message = '正在下载';
@@ -719,7 +782,7 @@ export async function start(options = {}) {
       }
       if (url.pathname === '/' || url.pathname === '/health') {
         if (url.pathname === '/health') {
-          sendJson(res, 200, { ok: true, name: 'dsh-pet-app' });
+          sendJson(res, 200, { ok: true, name: '77-pet-app' });
           return;
         }
         sendText(res, 200, homePage(), 'text/html; charset=utf-8');
@@ -736,6 +799,15 @@ export async function start(options = {}) {
       }
       const rest = decodeURIComponent(url.pathname.slice(ROUTE_PREFIX.length + 1));
       const method = req.method ?? 'GET';
+      if (rest === 'pet-preview' && method === 'GET') {
+        const name = (url.searchParams.get('name') || '').trim();
+        if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) {
+          sendText(res, 404, 'not found');
+          return;
+        }
+        sendFile(req, res, path.join(userPacksDir(USER_DIR), name, 'preview.png'));
+        return;
+      }
       if (rest === 'pet-skill' && method === 'GET') {
         const template = readFileSync(path.join(ROOT, 'vendor', 'pet-skill', 'SKILL.md'), 'utf8');
         const address = server.address();
@@ -925,6 +997,56 @@ export async function start(options = {}) {
         }
         return;
       }
+      if (rest === 'catalog-source' && method === 'GET') {
+        sendJson(res, 200, { ok: true, ...readCatalogPrefs(), giteeNote: GITEE_STALE_NOTE });
+        return;
+      }
+      if (rest === 'catalog-source' && method === 'POST') {
+        const parsed = JSON.parse(body || '{}');
+        sendJson(res, 200, { ok: true, ...writeCatalogPrefs(parsed), giteeNote: GITEE_STALE_NOTE });
+        return;
+      }
+      if (rest === 'pet-catalog' && method === 'GET') {
+        const prefs = readCatalogPrefs();
+        const query = url.searchParams.get('source');
+        const source = query === 'gitee' || query === 'github' ? query : prefs.source;
+        try {
+          const pets = (await fetchPetCatalog(fetch, source)).map((pet) => catalogState(USER_DIR, pet));
+          sendJson(res, 200, {
+            ok: true,
+            pets,
+            source,
+            askOnStall: prefs.askOnStall,
+            giteeNote: GITEE_STALE_NOTE,
+          });
+        } catch (error) {
+          sendJson(res, 200, {
+            ok: false,
+            stalled: Boolean(error?.stalled) && source === 'github',
+            source,
+            askOnStall: prefs.askOnStall,
+            giteeNote: GITEE_STALE_NOTE,
+            message: error instanceof Error ? error.message : String(error),
+            pets: [],
+          });
+        }
+        return;
+      }
+      if (rest === 'pet-catalog/install' && method === 'POST') {
+        try {
+          const parsed = JSON.parse(body || '{}');
+          const source = parsed.source === 'gitee' ? 'gitee' : 'github';
+          const pet = await installCatalogPet(USER_DIR, parsed.id, fetch, source);
+          sendJson(res, 200, { ok: true, id: pet.id, name: pet.name, source, packs: packChoices() });
+        } catch (error) {
+          sendJson(res, 200, {
+            ok: false,
+            stalled: Boolean(error?.stalled),
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      }
       if (rest === 'pet-config' && method === 'GET') {
         const packs = packChoices();
         sendJson(res, 200, {
@@ -1004,7 +1126,7 @@ export async function start(options = {}) {
   });
 
   const port = await listen(server, options.port ?? 3080);
-  console.log(`[dsh-pet] 宿主 http://127.0.0.1:${port}/dsh-pet-7340/config`);
+  console.log(`[77-pet] 宿主 http://127.0.0.1:${port}/77-pet/config`);
   const scheduleUpdateCheck = () => {
     if (options.checkUpdates === false) return;
     const run = () => {
@@ -1016,13 +1138,14 @@ export async function start(options = {}) {
 
   scheduleWhisper();
   scheduleUpdateCheck();
+  await installDefaultPet();
   if (launchHelper) startHelper();
 
   async function stop(reason = 'stop') {
     if (shuttingDown) return;
     shuttingDown = true;
     expectExit = true;
-    console.log('[dsh-pet] 收尾（' + reason + '）');
+    console.log('[77-pet] 收尾（' + reason + '）');
     if (whisperTimer) clearTimeout(whisperTimer);
     if (updateTimer) clearInterval(updateTimer);
     if (helper && helper.exitCode === null) {

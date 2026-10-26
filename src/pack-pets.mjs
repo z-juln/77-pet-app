@@ -1,6 +1,6 @@
 /**
- * 把 vendor/pets 下的每种宠物打成 zip，供安装包携带。
- * 安装或启动时再解压到用户目录，安装包里不再放一份散文件。
+ * 可选：把 vendor/pets 下的每种宠物打成 zip。
+ * 安装包不再携带这些 zip，用户从 77-pet-packs 按需下载。
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,11 +13,11 @@ const outDir = path.join(root, 'vendor', 'pet-packs');
 
 const names = listPetPackNames(root);
 if (names.length === 0) {
-  console.log('[dsh-pet] 没有可打包的宠物');
+  console.log('[77-pet] 没有可打包的宠物');
 } else {
   for (const name of names) {
     const dest = path.join(outDir, name + '.zip');
     await zipDirectory(path.join(root, 'vendor', 'pets', name), dest);
-    console.log('[dsh-pet] 宠物包 ' + dest);
+    console.log('[77-pet] 宠物包 ' + dest);
   }
 }

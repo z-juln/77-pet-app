@@ -1,5 +1,5 @@
 /**
- * dsh-pet desktop helper —— 「全局 DPI 线性化」的纯判定与纯换算。
+ * 77-pet desktop helper —— 「全局 DPI 线性化」的纯判定与纯换算。
  *
  * 背景（完整推理见 main.js 顶部那段长注释）：Windows 上 Chromium 的 DIP↔物理像素换算是**逐显示器**
  * 的仿射变换，窗口骑缝时会两套坐标系横跳（拖过屏缝「分身闪烁」）。helper 的修法是启动前
@@ -34,8 +34,8 @@
  *
  * @param {{platform?: string, dpiProbe?: boolean, forceDsf?: string|number|null}} [o]
  *   platform: process.platform
- *   dpiProbe: 本进程是否就是 DPI 探测子进程（DSH_PET_DPI_PROBE=1）
- *   forceDsf: DSH_PET_FORCE_DSF 原始值（'0' = 关闭本机制；正数 = 排障用覆盖）
+ *   dpiProbe: 本进程是否就是 DPI 探测子进程（PET77_DPI_PROBE=1）
+ *   forceDsf: PET77_FORCE_DSF 原始值（'0' = 关闭本机制；正数 = 排障用覆盖）
  * @returns {boolean}
  */
 function shouldLinearize(o = {}) {

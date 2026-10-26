@@ -40,8 +40,8 @@ export async function applyDownloadedUpdate({ file, platform, execPath, relaunch
   if (platform === 'darwin') {
     const bundle = macAppBundle(execPath);
     if (!bundle) throw new Error('找不到当前应用，无法自动安装');
-    const mount = path.join(tmpdir(), 'dsh-pet-mount-' + Date.now());
-    const staging = path.join(tmpdir(), 'dsh-pet-new-' + Date.now() + '.app');
+    const mount = path.join(tmpdir(), 'pet77-mount-' + Date.now());
+    const staging = path.join(tmpdir(), 'pet77-new-' + Date.now() + '.app');
     try {
       await execFileAsync('hdiutil', ['attach', file, '-nobrowse', '-readonly', '-mountpoint', mount]);
       const appName = readdirSync(mount).find((name) => name.endsWith('.app'));

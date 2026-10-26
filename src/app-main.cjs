@@ -17,18 +17,18 @@ async function boot() {
       app.exit(0);
     },
     onUpdateState(state) {
-      if (typeof global.__dshPetOnUpdate === 'function') global.__dshPetOnUpdate(state);
+      if (typeof global.__pet77OnUpdate === 'function') global.__pet77OnUpdate(state);
     },
   });
-  process.env.DSH_PET_CONFIG_URL = `http://127.0.0.1:${server.port}/dsh-pet-7340/config`;
-  process.env.DSH_PET_HOST_PID = String(process.pid);
-  process.env.DSH_PET_SCALE = process.env.DSH_PET_SCALE || '1';
-  process.env.DSH_PET_PETS = JSON.stringify(server.pets);
-  process.env.DSH_PET_TRAY_ICON = server.trayIcon;
+  process.env.PET77_CONFIG_URL = `http://127.0.0.1:${server.port}/77-pet/config`;
+  process.env.PET77_HOST_PID = String(process.pid);
+  process.env.PET77_SCALE = process.env.PET77_SCALE || '1';
+  process.env.PET77_PETS = JSON.stringify(server.pets);
+  process.env.PET77_TRAY_ICON = server.trayIcon;
   require('../vendor/electron-helper/main.js');
 }
 
 boot().catch((error) => {
-  console.error('[dsh-pet] 启动失败：', error);
+  console.error('[77-pet] 启动失败：', error);
   app.exit(1);
 });

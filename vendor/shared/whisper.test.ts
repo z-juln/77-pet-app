@@ -15,69 +15,69 @@ describe('memeImageUrl —— 表情包图片地址', () => {
   test('中文名被 URL 编码（路由段只认编码后的形态）', () => {
     assert.equal(
       memeImageUrl('鱼片有资源吗'),
-      '/dsh-pet-7340/pic/memes/' + encodeURIComponent('鱼片有资源吗') + '.png',
+      '/77-pet/pic/memes/' + encodeURIComponent('鱼片有资源吗') + '.png',
     );
     assert.ok(!memeImageUrl('鱼片有资源吗').includes('鱼片'));
   });
 
   test('纯 ASCII 名原样保留，便于肉眼排查', () => {
-    assert.equal(memeImageUrl('Ciallo'), '/dsh-pet-7340/pic/memes/Ciallo.png');
+    assert.equal(memeImageUrl('Ciallo'), '/77-pet/pic/memes/Ciallo.png');
   });
 
   test('走到 pic/memes 前缀下（host 路由按该前缀映射 assets/memes）', () => {
-    assert.ok(memeImageUrl('可爱').startsWith('/dsh-pet-7340/pic/memes/'));
+    assert.ok(memeImageUrl('可爱').startsWith('/77-pet/pic/memes/'));
     assert.ok(memeImageUrl('可爱').endsWith('.png'));
   });
 
-  test('base 语义 = 已含 /dsh-pet-7340 的宿主基址（与视频 assetBase 一致）', () => {
-    // 桌面 bridge 模式：传 BASE 本身（它已含 /dsh-pet-7340），不得再拼一次
+  test('base 语义 = 已含 /77-pet 的宿主基址（与视频 assetBase 一致）', () => {
+    // 桌面 bridge 模式：传 BASE 本身（它已含 /77-pet），不得再拼一次
     assert.equal(
-      memeImageUrl('可爱', 'dsh-pet-bridge://dsh-pet/dsh-pet-7340'),
-      'dsh-pet-bridge://dsh-pet/dsh-pet-7340/pic/memes/' + encodeURIComponent('可爱') + '.png',
+      memeImageUrl('可爱', 'pet77-bridge://77-pet/77-pet'),
+      'pet77-bridge://77-pet/77-pet/pic/memes/' + encodeURIComponent('可爱') + '.png',
     );
     // 桌面 HTTP 直连模式：同上
     assert.equal(
-      memeImageUrl('可爱', 'http://127.0.0.1:8080/dsh-pet-7340'),
-      'http://127.0.0.1:8080/dsh-pet-7340/pic/memes/' + encodeURIComponent('可爱') + '.png',
+      memeImageUrl('可爱', 'http://127.0.0.1:8080/77-pet'),
+      'http://127.0.0.1:8080/77-pet/pic/memes/' + encodeURIComponent('可爱') + '.png',
     );
     // 浏览器缺省：相对路径（页面自身就在宿主 origin 上）
-    assert.equal(memeImageUrl('可爱'), '/dsh-pet-7340/pic/memes/' + encodeURIComponent('可爱') + '.png');
+    assert.equal(memeImageUrl('可爱'), '/77-pet/pic/memes/' + encodeURIComponent('可爱') + '.png');
   });
 
-  test('不得出现重复的 /dsh-pet-7340 段（桌面端图裂的成因）', () => {
-    for (const base of ['dsh-pet-bridge://dsh-pet/dsh-pet-7340', 'http://127.0.0.1:8080/dsh-pet-7340']) {
+  test('不得出现重复的 /77-pet 段（桌面端图裂的成因）', () => {
+    for (const base of ['pet77-bridge://77-pet/77-pet', 'http://127.0.0.1:8080/77-pet']) {
       const url = memeImageUrl('可爱', base);
-      assert.equal(url.split('/dsh-pet-7340').length - 1, 1, url);
+      assert.equal(url.split('/77-pet').length - 1, 1, url);
     }
-    assert.equal(memeImageUrl('可爱').split('/dsh-pet-7340').length - 1, 1);
+    assert.equal(memeImageUrl('可爱').split('/77-pet').length - 1, 1);
   });
 
   test('带素材根 → 多一段 <素材根>（配图归属与动画同一套：按素材根取目录链）', () => {
     assert.equal(
-      memeImageUrl('可爱', '/dsh-pet-7340', 'test1'),
-      '/dsh-pet-7340/pic/memes/test1/' + encodeURIComponent('可爱') + '.png',
+      memeImageUrl('可爱', '/77-pet', 'test1'),
+      '/77-pet/pic/memes/test1/' + encodeURIComponent('可爱') + '.png',
     );
     // 中文素材根同样编码
     assert.equal(
-      memeImageUrl('可爱', '/dsh-pet-7340', '小不点'),
-      '/dsh-pet-7340/pic/memes/' + encodeURIComponent('小不点') + '/' + encodeURIComponent('可爱') + '.png',
+      memeImageUrl('可爱', '/77-pet', '小不点'),
+      '/77-pet/pic/memes/' + encodeURIComponent('小不点') + '/' + encodeURIComponent('可爱') + '.png',
     );
     // 桌面端：base 已含前缀，素材根只加一段
     assert.equal(
-      memeImageUrl('可爱', 'http://127.0.0.1:8080/dsh-pet-7340', 'pack1'),
-      'http://127.0.0.1:8080/dsh-pet-7340/pic/memes/pack1/' + encodeURIComponent('可爱') + '.png',
+      memeImageUrl('可爱', 'http://127.0.0.1:8080/77-pet', 'pack1'),
+      'http://127.0.0.1:8080/77-pet/pic/memes/pack1/' + encodeURIComponent('可爱') + '.png',
     );
-    assert.equal(memeImageUrl('可爱', '/dsh-pet-7340', 'pack1').split('/dsh-pet-7340').length - 1, 1);
+    assert.equal(memeImageUrl('可爱', '/77-pet', 'pack1').split('/77-pet').length - 1, 1);
   });
 
   test('素材根缺省/空白 → 退回旧的两段形式（= 素材根 main 的目录链，不至于图裂）', () => {
     const flat = memeImageUrl('可爱');
     for (const root of ['', '   ', undefined]) {
-      assert.equal(memeImageUrl('可爱', '/dsh-pet-7340', root), flat);
+      assert.equal(memeImageUrl('可爱', '/77-pet', root), flat);
     }
     assert.equal(
       memeImageUrl('可爱', undefined, 'main'),
-      '/dsh-pet-7340/pic/memes/main/' + encodeURIComponent('可爱') + '.png',
+      '/77-pet/pic/memes/main/' + encodeURIComponent('可爱') + '.png',
     );
   });
 });
@@ -139,14 +139,14 @@ describe('createMemeImage —— 两端共用的配图节点', () => {
 
   test('桌面传 BASE → src 为绝对地址（file:// 页面必须绝对，且与视频同规则）', () => {
     const doc = stubDocument();
-    const base = 'http://127.0.0.1:8080/dsh-pet-7340';
+    const base = 'http://127.0.0.1:8080/77-pet';
     try {
       createMemeImage('可爱', base);
       const img = doc.created.find((c) => c.tag === 'img');
       assert.equal(img?.props.src, memeImageUrl('可爱', base));
       assert.equal(
         img?.props.src,
-        'http://127.0.0.1:8080/dsh-pet-7340/pic/memes/' + encodeURIComponent('可爱') + '.png',
+        'http://127.0.0.1:8080/77-pet/pic/memes/' + encodeURIComponent('可爱') + '.png',
       );
     } finally {
       doc.restore();
@@ -156,9 +156,9 @@ describe('createMemeImage —— 两端共用的配图节点', () => {
   test('createMemeImage 透传素材根（桌面端按宠物取自己的表情包目录）', () => {
     const doc = stubDocument();
     try {
-      createMemeImage('可爱', 'http://127.0.0.1:8080/dsh-pet-7340', 'pack1');
+      createMemeImage('可爱', 'http://127.0.0.1:8080/77-pet', 'pack1');
       const img = doc.created.find((c) => c.tag === 'img');
-      assert.equal(img?.props.src, memeImageUrl('可爱', 'http://127.0.0.1:8080/dsh-pet-7340', 'pack1'));
+      assert.equal(img?.props.src, memeImageUrl('可爱', 'http://127.0.0.1:8080/77-pet', 'pack1'));
     } finally {
       doc.restore();
     }
@@ -167,8 +167,8 @@ describe('createMemeImage —— 两端共用的配图节点', () => {
   test('两端选择器/变量都写在 shared 里（避免浏览器与桌面各写一份走样）', () => {
     assert.ok(MEME_BUBBLE_CSS.includes('.' + MEME_IMG_CLASS));
     assert.ok(MEME_BUBBLE_CSS.includes('.' + MEME_BUBBLE_CLASS));
-    // 尺寸同时兼容两端变量名：浏览器 --dsh-pet-size、桌面 --pet-size
-    assert.ok(MEME_BUBBLE_CSS.includes('--dsh-pet-size'));
+    // 尺寸同时兼容两端变量名：浏览器 --pet77-size、桌面 --pet-size
+    assert.ok(MEME_BUBBLE_CSS.includes('--pet77-size'));
     assert.ok(MEME_BUBBLE_CSS.includes('--pet-size'));
   });
 });

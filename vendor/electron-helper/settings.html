@@ -258,7 +258,7 @@
       baseUrl.addEventListener('input', syncApiKeyHint);
       useDefaultApi.addEventListener('click', applyRecommended);
 
-      fetch(origin + '/dsh-pet-7340/app-settings')
+      fetch(origin + '/77-pet/app-settings')
         .then((res) => res.json())
         .then((data) => {
           const choices = data.choices || {};
@@ -289,7 +289,7 @@
         };
         status.textContent = '正在验证并保存…';
         try {
-          const res = await fetch(origin + '/dsh-pet-7340/app-settings', {
+          const res = await fetch(origin + '/77-pet/app-settings', {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(payload),

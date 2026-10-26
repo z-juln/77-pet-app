@@ -35,7 +35,7 @@ function storedZip(name, data) {
 }
 
 test('zip 能原样解压，并拒绝跳出目录', async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-pet-zip-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'pet77-zip-'));
   try {
     const pack = path.join(dir, 'src');
     mkdirSync(path.join(pack, 'memes'), { recursive: true });
@@ -54,7 +54,7 @@ test('zip 能原样解压，并拒绝跳出目录', async () => {
 });
 
 test('导入的 zip 成为用户目录里的新宠物，且不会被安装包覆盖', async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-pet-import-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'pet77-import-'));
   try {
     const appRoot = path.join(dir, 'app');
     const source = path.join(appRoot, 'vendor', 'pets', '外来猫');
@@ -81,7 +81,7 @@ test('导入的 zip 成为用户目录里的新宠物，且不会被安装包覆
 });
 
 test('分类写成 name/animations 时读出来仍是 id/actions', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-pet-cat-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'pet77-cat-'));
   try {
     const userDir = path.join(dir, 'user');
     const pack = path.join(userDir, 'pet-packs', '企鹅');
@@ -105,7 +105,7 @@ test('分类写成 name/animations 时读出来仍是 id/actions', () => {
 });
 
 test('只能删除用户自己的宠物种类', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-pet-remove-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'pet77-remove-'));
   try {
     const appRoot = path.join(dir, 'app');
     const userDir = path.join(dir, 'user');

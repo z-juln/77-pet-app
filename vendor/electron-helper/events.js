@@ -1,12 +1,12 @@
 /**
- * dsh-pet desktop helper —— 事件联动（余额 / 碎碎念 / 广播 / 工作状态）。
+ * 77-pet desktop helper —— 事件联动（余额 / 碎碎念 / 广播 / 工作状态）。
  *
  * 展示与 tick 回调经 PetSprite.prototype 挂载（运行时可解析，顺序无碍）；
  * startLoops 是全部轮询的组装入口（boot 后调用）。依赖 constants.js / sprite.js。
  */
 'use strict';
 
-// ---- 工作状态联动（DSH 会话状态，每只宠物按 workStatusEnabled 门控；容器 1s 轮询，ts 变化才递增 tick）----
+// ---- 工作状态联动（ 会话状态，每只宠物按 workStatusEnabled 门控；容器 1s 轮询，ts 变化才递增 tick）----
 // 气泡驻留语义与浏览器一致：thinking/working/result/waiting（"事情还没完"）常驻直到状态切走；
 //   success/error（"这事结束了"）10s 自动收起；state=null（空闲/回合被打断）收起气泡回待机。
 // 动画循环语义：进行中档位循环播（switchTo once=false），终态档位播一遍回 idle 链；
@@ -42,18 +42,18 @@ PetSprite.prototype.onWorkTick = function onWorkTick(snapshot, tick) {
   }
   const pool = this.animations.events?.workStatus;
   if (!pool || pool.length === 0) {
-    console.error('[dsh-pet] 配置缺少 animations.events.workStatus，无法播放工作状态动画');
+    console.error('[77-pet] 配置缺少 animations.events.workStatus，无法播放工作状态动画');
     return;
   }
   const idx = S.WORK_STATUS_INDEX[state];
   const slot = pool[idx];
   if (slot === undefined) {
-    console.error('[dsh-pet] work-status 档位索引越界：state=' + state + ' idx=' + idx);
+    console.error('[77-pet] work-status 档位索引越界：state=' + state + ' idx=' + idx);
     return;
   }
   const name = S.pickSlot(slot, this.anim); // 数组槽位档内随机抽 1，且避开当前正播动画（避免连续重复，与浏览器一致）
   console.log(
-    '[dsh-pet] ' +
+    '[77-pet] ' +
       new Date().toTimeString().slice(0, 8) +
       ' workStatus pet=' +
       this.pet.id +
@@ -130,13 +130,13 @@ PetSprite.prototype.showBalanceNotice = function showBalanceNotice(state) {
 PetSprite.prototype.showWhisper = function showWhisper(text, image) {
   const pool = this.animations.events?.whisper;
   if (!pool || pool.length === 0) {
-    console.error('[dsh-pet] 配置缺少 animations.events.whisper，无法播放碎碎念动画');
+    console.error('[77-pet] 配置缺少 animations.events.whisper，无法播放碎碎念动画');
     return;
   }
   // 整池随机抽 1 槽（避开当前正播动画，避免连续重复）；槽位若为数组候选再档内随机（与浏览器一致）
   const name = S.pickSlot(S.pick(pool, this.anim), this.anim);
   console.log(
-    '[dsh-pet] ' +
+    '[77-pet] ' +
       new Date().toTimeString().slice(0, 8) +
       ' whisper pet=' +
       this.pet.id +
@@ -168,13 +168,13 @@ PetSprite.prototype.showBalanceNow = function showBalanceNow(state) {
   if (p === undefined) return; // 当前数据源没有百分比语义：不触发档位动画
   const pool = this.animations.events?.balance;
   if (!pool || pool.length === 0) {
-    console.error('[dsh-pet] 配置缺少 animations.events.balance，无法播放余额事件动画');
+    console.error('[77-pet] 配置缺少 animations.events.balance，无法播放余额事件动画');
     return;
   }
   const idx = S.balanceEventIndex(p);
   const slot = pool[idx];
   if (!slot) {
-    console.error('[dsh-pet] balance 档位索引越界：p=' + p + ' idx=' + idx);
+    console.error('[77-pet] balance 档位索引越界：p=' + p + ' idx=' + idx);
     return;
   }
   const name = S.pickSlot(slot, this.anim); // 数组槽位档内随机抽 1，且避开当前正播动画（避免连续重复，与浏览器一致）
@@ -203,7 +203,7 @@ function applyBalanceNotice(state, explicit) {
   if (notice.show) for (const s of sprites) s.showBalanceNotice(state);
   // 未登记服务商是配置事实（已由气泡说明），不再刷 console；其余原因照旧显式报错，绝不伪造余额
   if (state.reason !== 'unsupported') {
-    console.error('[dsh-pet] 余额查询失败 reason=' + state.reason + (state.message ? ' ' + state.message : ''));
+    console.error('[77-pet] 余额查询失败 reason=' + state.reason + (state.message ? ' ' + state.message : ''));
   }
 }
 
@@ -217,7 +217,7 @@ function applyBalanceLeaf(leaf) {
   const hit = S.readBalance(leaf);
   if (!hit) return;
   balance = hit.state;
-  window.__dshPetDebug.lastBalanceOk = hit.state && hit.state.ok === true;
+  window.__pet77Debug.lastBalanceOk = hit.state && hit.state.ok === true;
   if (hit.state.ok) {
     balanceTick++;
     for (const s of sprites) s.onBalanceTick(hit.state, balanceTick);

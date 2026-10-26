@@ -1,5 +1,5 @@
 /**
- * dsh-pet desktop helper —— 点击穿透「兜底通道」的纯判定（issue #55 报告者补丁的逻辑部分）。
+ * 77-pet desktop helper —— 点击穿透「兜底通道」的纯判定（issue #55 报告者补丁的逻辑部分）。
  *
  * 背景：窗口默认整窗点击穿透（`setIgnoreMouseEvents(true, { forward: true })`），只靠 Electron 的
  * forward 低级鼠标钩子把 mousemove 转发进渲染端，渲染端再做命中判定并 IPC 回来翻转可交互——

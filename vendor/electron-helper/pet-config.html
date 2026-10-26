@@ -4,43 +4,224 @@
     <meta charset="utf-8" />
     <title>桌宠配置</title>
     <style>
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
       body {
         margin: 0;
-        padding: 24px 28px 20px;
+        display: flex;
         font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
         color: #2b2b2b;
-        background: #f7f4ef;
+        background: #f3efe8;
       }
-      .head {
+      button, input, select { font-family: inherit; }
+      .sidebar {
+        width: 232px;
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        padding: 18px 14px 14px;
+        background: #fff;
+        border-right: 1px solid rgba(0, 0, 0, 0.06);
+      }
+      .sidebar h1 { margin: 0 8px 14px; font-size: 18px; font-weight: 600; }
+      .pet-list { display: flex; flex-direction: column; gap: 4px; overflow: auto; min-height: 0; flex: 1; }
+      .side-pet, .sidebar-add, .text-button, .tab, .card-button, .danger, .primary {
+        border: 0;
+        cursor: pointer;
+      }
+      .side-pet {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: transparent;
+        text-align: left;
+        color: #2b2b2b;
+      }
+      .side-pet:hover { background: rgba(0, 0, 0, 0.04); }
+      .side-pet.active { background: #eef3ff; }
+      .side-name { font-size: 14px; font-weight: 600; }
+      .side-meta { font-size: 12px; color: rgba(43, 43, 43, 0.55); }
+      .sidebar-foot { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+      .sidebar-add, .text-button {
+        border-radius: 10px;
+        background: #2b2b2b;
+        color: #fff;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      .text-button {
+        background: transparent;
+        color: #4c6fd6;
+        padding: 4px 8px;
+      }
+      .main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 24px; }
+      .empty {
+        margin-top: 48px;
+        color: rgba(43, 43, 43, 0.62);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .editor-head, .catalog-head, .card-actions, .picker-actions, .tabs {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        margin-bottom: 18px;
       }
-      .head-link {
-        border: 0;
-        background: transparent;
-        color: #4c8bf5;
+      .editor-head { justify-content: space-between; margin-bottom: 18px; }
+      .editor-head h2, .catalog-head h2 { margin: 0; font-size: 20px; font-weight: 600; }
+      .danger {
+        border: 1px solid #f0b4b4;
+        border-radius: 10px;
+        background: #fff;
+        color: #b42318;
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+      .danger:disabled { opacity: 0.45; }
+      .editor-tools { display: flex; align-items: center; gap: 8px; }
+      .head-action {
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        background: #fff;
+        color: #2b2b2b;
+        padding: 6px 12px;
         font-size: 13px;
         cursor: pointer;
-        padding: 0;
       }
-      .skill-panel {
-        width: min(560px, 100%);
+      .head-action.active { background: #2b2b2b; color: #fff; border-color: #2b2b2b; }
+      .danger-wrap.is-blocked { cursor: not-allowed; }
+      .danger-wrap.is-blocked .danger,
+      .danger-wrap.is-blocked .head-action { pointer-events: none; }
+      .danger-wrap .tip {
+        display: none;
+        position: absolute;
+        z-index: 5;
+        top: calc(100% + 8px);
+        right: 0;
+        width: max-content;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #2b2b2b;
+        color: #fff;
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: nowrap;
+        pointer-events: none;
+        box-shadow: 0 8px 20px rgba(43, 43, 43, 0.18);
+      }
+      .danger-wrap.is-blocked:hover .tip { display: block; }
+      .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 16px; }
+      .span-3 { grid-column: 1 / -1; }
+      label { display: block; margin-bottom: 6px; font-size: 12px; color: rgba(43, 43, 43, 0.62); }
+      input, select {
+        width: 100%;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: 14px;
+        background: #fff;
+        color: #2b2b2b;
+      }
+      input:focus, select:focus { outline: 2px solid rgba(76, 111, 214, 0.35); outline-offset: 1px; }
+      .pack-field { display: flex; align-items: center; gap: 8px; }
+      .pack-field input { flex: 1; }
+      .pack-field .danger { flex: none; white-space: nowrap; }
+      .check { display: flex; align-items: center; gap: 8px; min-height: 38px; margin: 0; font-size: 14px; color: #2b2b2b; }
+      .check input { width: 16px; height: 16px; margin: 0; }
+      .field-note { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: rgba(43, 43, 43, 0.55); }
+      .actions { margin-top: 20px; }
+      .primary { border-radius: 10px; background: #2b2b2b; color: #fff; padding: 10px 18px; font-size: 14px; }
+      .primary:disabled { opacity: 0.55; cursor: default; }
+      #status, #pickerStatus, #skillStatus { min-height: 1.4em; margin: 12px 0 0; font-size: 13px; }
+      #status.error, #pickerStatus.error, #skillStatus.error, .remote-note.error { color: #b42318; }
+      .remote-note { margin: 0 0 10px; font-size: 13px; color: rgba(43, 43, 43, 0.62); }
+      .picker {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(43, 43, 43, 0.32);
+      }
+      .picker[hidden] { display: none; }
+      .catalog-panel, .skill-panel {
+        width: min(760px, 100%);
         max-height: calc(100vh - 48px);
         display: flex;
         flex-direction: column;
-        padding: 18px 18px 16px;
+        padding: 18px;
         border-radius: 16px;
-        background: #fff;
-        box-shadow: 0 16px 40px rgba(43, 43, 43, 0.18);
+        background: #f7f4ef;
+        box-shadow: 0 18px 48px rgba(43, 43, 43, 0.22);
       }
+      .skill-panel { width: min(560px, 100%); background: #fff; }
+      .catalog-head { justify-content: space-between; }
+      .tabs { justify-content: flex-start; gap: 8px; margin: 14px 0 12px; }
+      .tab {
+        border-radius: 999px;
+        padding: 6px 14px;
+        background: transparent;
+        color: rgba(43, 43, 43, 0.62);
+        font-size: 13px;
+      }
+      .tab.active { background: #fff; color: #2b2b2b; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
+      .catalog-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+        gap: 12px;
+        overflow: auto;
+        min-height: 240px;
+        align-content: start;
+      }
+      .catalog-grid[hidden] { display: none; }
+      .pet-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .preview {
+        height: 132px;
+        width: 100%;
+        object-fit: contain;
+        border-radius: 10px;
+        background: #efeae3;
+      }
+      .preview.missing {
+        display: grid;
+        place-items: center;
+        color: rgba(43, 43, 43, 0.35);
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .card-name { font-size: 14px; font-weight: 600; }
+      .card-meta { font-size: 12px; color: rgba(43, 43, 43, 0.55); }
+      .card-actions { gap: 8px; flex-wrap: wrap; align-items: stretch; }
+      .card-button, .card-actions .danger {
+        flex: 1 1 calc(50% - 4px);
+        min-width: min-content;
+        white-space: nowrap;
+        text-align: center;
+      }
+      .card-button {
+        border-radius: 8px;
+        background: #2b2b2b;
+        color: #fff;
+        padding: 7px 10px;
+        font-size: 13px;
+      }
+      .card-button:disabled { background: #e7e2da; color: rgba(43, 43, 43, 0.45); cursor: default; }
+      .card-actions .danger { padding: 7px 10px; }
+      .picker-actions { gap: 8px; margin-top: 12px; }
       .skill-text {
-        max-height: calc(100vh - 210px);
-        margin: 0 0 12px;
+        max-height: calc(100vh - 230px);
+        margin: 12px 0;
         padding: 12px;
         overflow: auto;
         border-radius: 10px;
@@ -51,268 +232,139 @@
         white-space: pre-wrap;
         word-break: break-word;
       }
-      #skillStatus {
-        min-height: 1.4em;
-        margin: 12px 0 0;
-        font-size: 13px;
-      }
-      #skillStatus.error {
-        color: #b42318;
-      }
-      h1 {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 600;
-      }
-      .section-label {
-        margin: 0 0 10px;
-        font-size: 13px;
-        color: rgba(43, 43, 43, 0.72);
-      }
-      .pet-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-      .pet-chip,
-      .pet-add {
-        border-radius: 10px;
-        padding: 8px 12px;
-        font-size: 13px;
-        cursor: pointer;
-      }
-      .pet-chip {
-        border: 1px solid rgba(0, 0, 0, 0.12);
-        background: #fff;
-        color: #2b2b2b;
-      }
-      .pet-chip.active {
-        border-color: #4c8bf5;
-        background: #eef4ff;
-      }
-      .pet-add {
-        border: 1px dashed rgba(0, 0, 0, 0.18);
-        background: transparent;
-        color: rgba(43, 43, 43, 0.72);
-      }
-      .picker {
-        position: fixed;
-        inset: 0;
-        z-index: 20;
-        display: grid;
-        place-items: center;
-        padding: 24px;
-        background: rgba(43, 43, 43, 0.28);
-      }
-      .picker[hidden] {
-        display: none;
-      }
-      .picker-panel {
-        width: min(420px, 100%);
-        padding: 18px 18px 16px;
-        border-radius: 16px;
-        background: #fff;
-        box-shadow: 0 16px 40px rgba(43, 43, 43, 0.18);
-      }
-      .picker-actions {
-        display: flex;
-        gap: 8px;
-      }
-      .pack-choice {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .pack-field {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .pack-field input {
-        flex: 1;
-      }
-      .pack-field .danger {
-        flex: none;
-        white-space: nowrap;
-      }
-      #pickerStatus {
-        min-height: 1.4em;
-        margin: 12px 0 0;
-        font-size: 13px;
-      }
-      #pickerStatus.error {
-        color: #b42318;
-      }
-      .card {
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 14px;
-        background: #fff;
-        padding: 18px 18px 16px;
-      }
-      .card-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 14px;
-      }
-      .card-head h2 {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 600;
-      }
-      .danger {
-        border: 1px solid #f0b4b4;
-        border-radius: 10px;
-        background: #fff;
-        color: #b42318;
-        padding: 6px 12px;
-        font-size: 13px;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 12px 14px;
-      }
-      label {
-        display: block;
-        margin-bottom: 6px;
-        font-size: 12px;
-        color: rgba(43, 43, 43, 0.72);
-      }
-      input,
-      select {
-        width: 100%;
-        border: 1px solid rgba(0, 0, 0, 0.12);
-        border-radius: 10px;
-        padding: 9px 11px;
-        font-size: 14px;
-        background: #fff;
-        color: #2b2b2b;
-      }
-      input:focus,
-      select:focus {
-        outline: 2px solid rgba(43, 43, 43, 0.15);
-        outline-offset: 1px;
-      }
-      .check {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 38px;
-        margin: 0;
-        font-size: 14px;
-        color: #2b2b2b;
-      }
-      .check input {
-        width: 16px;
-        height: 16px;
-        margin: 0;
-      }
-      .field-note {
-        margin: 6px 0 0;
-        font-size: 12px;
-        line-height: 1.4;
-        color: rgba(43, 43, 43, 0.55);
-      }
-      .actions {
-        margin-top: 18px;
-      }
-      .primary {
-        border: 0;
-        border-radius: 10px;
-        background: #2b2b2b;
-        color: #fff;
-        padding: 10px 16px;
-        font-size: 14px;
-      }
-      #status {
-        min-height: 1.4em;
-        margin-top: 12px;
-        font-size: 13px;
-      }
-      #status.error {
-        color: #b42318;
-      }
+      .section-label { margin: 0 0 8px; font-size: 13px; color: rgba(43, 43, 43, 0.62); line-height: 1.5; }
+      .source-box { margin: 0 0 12px; }
+      .source-box[hidden],
+      #localTools[hidden] { display: none; }
+      .source-line { display: flex; align-items: center; gap: 10px; }
+      .source-line span { font-size: 13px; color: rgba(43, 43, 43, 0.62); }
+      .source-line select { width: auto; min-width: 168px; }
+      .stall-copy { margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
+      .stall-actions { display: flex; gap: 8px; margin-top: 14px; }
     </style>
   </head>
   <body>
-    <div class="head">
-      <h1>桌宠配置</h1>
-      <button id="openSkill" class="head-link" type="button">用 Agent 做宠物</button>
-    </div>
-    <div id="skillLayer" class="picker" hidden>
-      <div class="skill-panel">
-        <p class="section-label">复制下面的技能文档，贴给 Cursor、Codex 或其他 Agent。它会在本机写出宠物，改完后桌面上马上能看到。</p>
-        <pre id="skillText" class="skill-text">正在读取…</pre>
-        <div class="picker-actions">
-          <button id="copySkill" class="primary" type="button">复制给 Agent</button>
-          <button id="closeSkill" class="pet-add" type="button">关闭</button>
-        </div>
-        <p id="skillStatus"></p>
+    <aside class="sidebar">
+      <h1>实例</h1>
+      <div id="petList" class="pet-list"></div>
+      <div class="sidebar-foot">
+        <button id="addPet" class="sidebar-add" type="button">从模板添加</button>
       </div>
-    </div>
-    <p class="section-label">宠物列表</p>
-    <div id="petList" class="pet-list"></div>
+    </aside>
+    <main class="main">
+      <p id="emptyState" class="empty" hidden>还没有实例。点左侧「从模板添加」，用云端模板或你自己的模板创建一只。</p>
+      <div id="editor">
+        <div class="editor-head">
+          <h2 id="editorTitle">实例</h2>
+          <div class="editor-tools">
+            <span id="hidePetWrap" class="danger-wrap">
+              <button id="hidePet" class="head-action" type="button">隐藏</button>
+              <span class="tip">只剩一只桌宠时不能隐藏</span>
+            </span>
+            <span id="deletePetWrap" class="danger-wrap">
+              <button id="deletePet" class="danger" type="button">删除</button>
+              <span class="tip">只剩一只桌宠时不能删除</span>
+            </span>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="span-3">
+            <label for="petPack">模板</label>
+            <div class="pack-field">
+              <input id="petPack" disabled />
+              <button id="deletePack" class="danger" type="button" hidden>删除模板</button>
+            </div>
+          </div>
+          <div>
+            <label for="petName">名字</label>
+            <input id="petName" autocomplete="off" />
+          </div>
+          <div>
+            <label for="petSize">大小（宽度 px）</label>
+            <input id="petSize" type="number" min="120" max="1200" step="1" />
+          </div>
+          <div>
+            <label for="petCorner">位置</label>
+            <select id="petCorner"></select>
+          </div>
+          <div>
+            <label for="petMarginX">水平偏移</label>
+            <input id="petMarginX" type="number" step="1" />
+          </div>
+          <div>
+            <label for="petMarginY">垂直偏移</label>
+            <input id="petMarginY" type="number" step="1" />
+          </div>
+          <div class="span-3">
+            <label for="whisperUseModel">碎碎念</label>
+            <label class="check">
+              <input id="whisperUseModel" type="checkbox" checked />
+              调用 AI 模型
+            </label>
+            <p class="field-note">开启后每次碎碎念都会请求模型，消耗 token。关闭则只用本地配文。</p>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="save" class="primary" type="button">保存</button>
+        </div>
+        <div id="status"></div>
+      </div>
+    </main>
     <div id="packPicker" class="picker" hidden>
-      <div class="picker-panel">
-        <p class="section-label">选择宠物种类，然后再填写名字和位置</p>
-        <div id="packChoices" class="pet-list"></div>
-        <div class="picker-actions">
-          <button id="importPack" class="pet-add" type="button">导入宠物包…</button>
-          <button id="cancelPick" class="pet-add" type="button">取消</button>
+      <div class="catalog-panel">
+        <div class="catalog-head">
+          <h2>选择模板</h2>
+          <button id="cancelPick" class="text-button" type="button">关闭</button>
+        </div>
+        <div class="tabs">
+          <button id="tabCloud" class="tab active" type="button">云端模板</button>
+          <button id="tabLocal" class="tab" type="button">我的模板</button>
+        </div>
+        <div id="cloudSource" class="source-box">
+          <div class="source-line">
+            <span>云端</span>
+            <select id="catalogSource">
+              <option value="github">Github（推荐）</option>
+              <option value="gitee">Gitee 镜像</option>
+            </select>
+          </div>
+          <p class="field-note">Gitee 不一定是最新的，作者可能会忘记同步。</p>
+        </div>
+        <div id="cloudPane" class="catalog-grid"></div>
+        <div id="localPane" class="catalog-grid" hidden></div>
+        <div id="localTools" class="picker-actions" hidden>
+          <button id="importPack" class="text-button" type="button">导入模板…</button>
+          <button id="openSkill" class="text-button" type="button">我想自定义桌宠</button>
         </div>
         <p id="pickerStatus"></p>
         <input id="packFile" type="file" accept=".zip,application/zip" hidden />
       </div>
     </div>
-    <div class="card">
-      <div class="card-head">
-        <h2>宠物配置</h2>
-        <button id="deletePet" class="danger" type="button">删除</button>
+    <div id="skillLayer" class="picker" hidden>
+      <div class="skill-panel">
+        <p class="section-label">复制下面的技能文档，贴给 Cursor、Codex 或其他 Agent。它会在本机写出模板，之后可以从「我的模板」添加实例。</p>
+        <pre id="skillText" class="skill-text">正在读取…</pre>
+        <div class="picker-actions">
+          <button id="copySkill" class="primary" type="button">复制给 Agent</button>
+          <button id="closeSkill" class="text-button" type="button">关闭</button>
+        </div>
+        <p id="skillStatus"></p>
       </div>
-      <div class="grid">
-        <div>
-          <label for="petPack">种类</label>
-          <div class="pack-field">
-            <input id="petPack" disabled />
-            <button id="deletePack" class="danger" type="button" hidden>删除种类</button>
-          </div>
-        </div>
-        <div>
-          <label for="petName">名字</label>
-          <input id="petName" autocomplete="off" />
-        </div>
-        <div>
-          <label for="petSize">大小（宽度 px）</label>
-          <input id="petSize" type="number" min="120" max="1200" step="1" />
-        </div>
-        <div>
-          <label for="whisperUseModel">碎碎念</label>
-          <label class="check">
-            <input id="whisperUseModel" type="checkbox" checked />
-            调用 AI 模型
-          </label>
-          <p class="field-note">开启后每次碎碎念都会请求模型，消耗 token。关闭则只用本地配文。</p>
-        </div>
-        <div>
-          <label for="petCorner">位置</label>
-          <select id="petCorner"></select>
-        </div>
-        <div>
-          <label for="petMarginX">水平偏移</label>
-          <input id="petMarginX" type="number" step="1" />
-        </div>
-        <div>
-          <label for="petMarginY">垂直偏移</label>
-          <input id="petMarginY" type="number" step="1" />
+    </div>
+    <div id="stallLayer" class="picker" hidden>
+      <div class="skill-panel">
+        <h2>GitHub 响应很慢</h2>
+        <p class="stall-copy">要改用 Gitee 镜像吗？Gitee 不一定是最新的，作者可能会忘记同步。</p>
+        <label class="check">
+          <input id="askNext" type="checkbox" checked />
+          下次询问
+        </label>
+        <div class="stall-actions">
+          <button id="useGitee" class="primary" type="button">改用 Gitee</button>
+          <button id="stayGithub" class="text-button" type="button">继续用 GitHub</button>
         </div>
       </div>
     </div>
-    <div class="actions">
-      <button id="save" class="primary" type="button">保存</button>
-    </div>
-    <div id="status"></div>
     <script>
       const origin = window.petConfigUi.origin;
       const openSkill = document.getElementById('openSkill');
@@ -321,12 +373,36 @@
       const copySkill = document.getElementById('copySkill');
       const closeSkill = document.getElementById('closeSkill');
       const skillStatus = document.getElementById('skillStatus');
+      const stallLayer = document.getElementById('stallLayer');
+      const askNext = document.getElementById('askNext');
+      const useGitee = document.getElementById('useGitee');
+      const stayGithub = document.getElementById('stayGithub');
+      const GITEE_NOTE = 'Gitee 不一定是最新的，作者可能会忘记同步。';
       let skillMarkdown = '';
+      let remotePets = [];
+      let remoteMessage = '';
+      let remoteError = false;
+      let catalogTab = 'cloud';
+      let selectedSource = 'github';
+      let sourceKnown = false;
+      let askOnStall = true;
+      let loadToken = 0;
+      let stallResolver = null;
       const status = document.getElementById('status');
+      const editor = document.getElementById('editor');
+      const editorTitle = document.getElementById('editorTitle');
+      const emptyState = document.getElementById('emptyState');
       const petList = document.getElementById('petList');
+      const addPet = document.getElementById('addPet');
       const packPicker = document.getElementById('packPicker');
       const pickerStatus = document.getElementById('pickerStatus');
-      const packChoices = document.getElementById('packChoices');
+      const cloudPane = document.getElementById('cloudPane');
+      const localPane = document.getElementById('localPane');
+      const cloudSource = document.getElementById('cloudSource');
+      const catalogSource = document.getElementById('catalogSource');
+      const tabCloud = document.getElementById('tabCloud');
+      const tabLocal = document.getElementById('tabLocal');
+      const localTools = document.getElementById('localTools');
       const importPack = document.getElementById('importPack');
       const cancelPick = document.getElementById('cancelPick');
       const packFile = document.getElementById('packFile');
@@ -340,15 +416,14 @@
       const petMarginY = document.getElementById('petMarginY');
       const saveButton = document.getElementById('save');
       const deleteButton = document.getElementById('deletePet');
+      const deletePetWrap = document.getElementById('deletePetWrap');
+      const hidePet = document.getElementById('hidePet');
+      const hidePetWrap = document.getElementById('hidePetWrap');
 
       let pets = [];
       let packs = [];
       let selectedId = '';
       let picking = false;
-
-      function chipLabel(pet) {
-        return pet.name + '（' + pet.size + 'px）';
-      }
 
       function selectedPet() {
         return pets.find((pet) => pet.id === selectedId) || pets[0];
@@ -356,18 +431,27 @@
 
       function syncFormFromPet() {
         const pet = selectedPet();
+        editor.hidden = !pet;
+        emptyState.hidden = Boolean(pet);
         if (!pet) return;
         selectedId = pet.id;
-        petPack.value = pet.pack || '';
+        editorTitle.textContent = pet.name || '实例';
         const packInfo = packs.find((item) => item.name === pet.pack);
-        deletePack.hidden = !packInfo || packInfo.official;
+        petPack.value = packInfo ? packInfo.label + (packInfo.label === pet.pack ? '' : ' · ' + pet.pack) : pet.pack || '';
+        deletePack.hidden = !isUserTemplate(packInfo);
         petName.value = pet.name || '';
         petSize.value = String(pet.size ?? 462);
         whisperUseModel.checked = pet.whisperUseModel !== false;
+        const hidden = pet.hidden === true;
+        const onlyOne = pets.length <= 1;
+        hidePet.textContent = hidden ? '展示' : '隐藏';
+        hidePet.disabled = !hidden && onlyOne;
+        hidePetWrap.classList.toggle('is-blocked', !hidden && onlyOne);
         petCorner.value = pet.position?.corner || 'top-right';
         petMarginX.value = String(pet.position?.marginX ?? 24);
         petMarginY.value = String(pet.position?.marginY ?? 250);
-        deleteButton.disabled = pets.length <= 1;
+        deleteButton.disabled = onlyOne;
+        deletePetWrap.classList.toggle('is-blocked', onlyOne);
       }
 
       function syncPetFromForm() {
@@ -381,6 +465,7 @@
           marginX: Number(petMarginX.value),
           marginY: Number(petMarginY.value),
         };
+        editorTitle.textContent = pet.name;
       }
 
       function renderPetList() {
@@ -388,8 +473,15 @@
         for (const pet of pets) {
           const chip = document.createElement('button');
           chip.type = 'button';
-          chip.className = 'pet-chip' + (pet.id === selectedId ? ' active' : '');
-          chip.textContent = chipLabel(pet);
+          chip.className = 'side-pet' + (pet.id === selectedId ? ' active' : '');
+          const name = document.createElement('span');
+          name.className = 'side-name';
+          name.textContent = pet.name || pet.id;
+          const meta = document.createElement('span');
+          meta.className = 'side-meta';
+          const packLabel = packs.find((item) => item.name === pet.pack)?.label || pet.pack || '未指定模板';
+          meta.textContent = packLabel + ' · ' + pet.size + 'px' + (pet.hidden ? ' · 已隐藏' : '');
+          chip.append(name, meta);
           chip.onclick = () => {
             syncPetFromForm();
             selectedId = pet.id;
@@ -398,51 +490,290 @@
           };
           petList.appendChild(chip);
         }
-        const add = document.createElement('button');
-        add.type = 'button';
-        add.className = 'pet-add';
-        add.textContent = '+ 添加宠物';
-        add.onclick = () => {
-          syncPetFromForm();
-          picking = true;
-          renderPackChoices();
+      }
+
+      function formatSize(bytes) {
+        if (!bytes) return '';
+        if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+      }
+
+      function previewNode(src, label) {
+        if (!src) {
+          const blank = document.createElement('div');
+          blank.className = 'preview missing';
+          blank.textContent = (label || '?').slice(0, 1);
+          return blank;
+        }
+        const image = document.createElement('img');
+        image.className = 'preview';
+        image.alt = '';
+        image.src = src;
+        image.onerror = () => {
+          const blank = document.createElement('div');
+          blank.className = 'preview missing';
+          blank.textContent = (label || '?').slice(0, 1);
+          image.replaceWith(blank);
         };
-        petList.appendChild(add);
+        return image;
+      }
+
+      function setCatalogTab(tab) {
+        catalogTab = tab;
+        cloudPane.hidden = tab !== 'cloud';
+        localPane.hidden = tab !== 'local';
+        cloudSource.hidden = tab !== 'cloud';
+        localTools.hidden = tab !== 'local';
+        tabCloud.classList.toggle('active', tab === 'cloud');
+        tabLocal.classList.toggle('active', tab === 'local');
+      }
+
+      function isUserTemplate(pack) {
+        return Boolean(pack) && mineTemplates().some((item) => item.name === pack.name);
+      }
+
+      function mineTemplates() {
+        const cloudIds = new Set(remotePets.map((pet) => pet.id));
+        return packs.filter((pack) => {
+          if (pack.origin === 'import' || pack.localTemplate) return true;
+          if (String(pack.origin || '').startsWith('catalog:') || String(pack.origin || '').startsWith('bundle:')) return false;
+          if (cloudIds.has(pack.name)) return false;
+          if (remoteError || remoteMessage.startsWith('正在')) return false;
+          return sourceKnown;
+        });
+      }
+
+      function askSwitchToGitee() {
+        askNext.checked = true;
+        stallLayer.hidden = false;
+        return new Promise((resolve) => {
+          stallResolver = resolve;
+        });
+      }
+
+      async function saveCatalogPrefs(patch) {
+        const res = await fetch(origin + '/77-pet/catalog-source', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        const data = await res.json();
+        if (typeof data.askOnStall === 'boolean') askOnStall = data.askOnStall;
+        return data;
+      }
+
+      async function loadRemotePets() {
+        const token = ++loadToken;
+        remoteError = false;
+        remotePets = [];
+        remoteMessage = '正在读取云端模板…';
+        renderPackChoices();
+        try {
+          const query = sourceKnown ? '?source=' + encodeURIComponent(selectedSource) : '';
+          const res = await fetch(origin + '/77-pet/pet-catalog' + query);
+          const data = await res.json();
+          if (token !== loadToken) return;
+          sourceKnown = true;
+          if (data.source === 'github' || data.source === 'gitee') {
+            selectedSource = data.source;
+            catalogSource.value = selectedSource;
+          }
+          askOnStall = data.askOnStall !== false;
+          if (data.stalled) {
+            remotePets = [];
+            if (!askOnStall) {
+              remoteError = true;
+              remoteMessage = 'GitHub 响应很慢。可以在上方改用 Gitee 镜像。' + GITEE_NOTE;
+              renderPackChoices();
+              return;
+            }
+            remoteError = true;
+            remoteMessage = 'GitHub 响应很慢。';
+            renderPackChoices();
+            const useMirror = await askSwitchToGitee();
+            if (token !== loadToken) return;
+            if (useMirror) {
+              selectedSource = 'gitee';
+              catalogSource.value = 'gitee';
+              await loadRemotePets();
+            } else {
+              remoteError = true;
+              remoteMessage = 'GitHub 响应很慢。' + GITEE_NOTE;
+              renderPackChoices();
+            }
+            return;
+          }
+          remotePets = data.pets || [];
+          remoteError = !data.ok;
+          remoteMessage = data.ok ? '' : data.message || '读取云端模板失败';
+        } catch (error) {
+          if (token !== loadToken) return;
+          remotePets = [];
+          remoteError = true;
+          remoteMessage = '读取云端模板失败：' + error.message;
+        }
+        renderPackChoices();
+      }
+
+      async function installRemote(pet, andAdd) {
+        pickerStatus.classList.remove('error');
+        pickerStatus.textContent = '正在下载模板「' + (pet.label || pet.name) + '」…';
+        try {
+          const res = await fetch(origin + '/77-pet/pet-catalog/install', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: pet.id, source: selectedSource }),
+          });
+          const data = await res.json();
+          if (data.stalled) {
+            if (!askOnStall) {
+              pickerStatus.textContent = 'GitHub 响应很慢。可以在上方改用 Gitee 镜像。' + GITEE_NOTE;
+              pickerStatus.classList.add('error');
+              return;
+            }
+            const useMirror = await askSwitchToGitee();
+            if (!useMirror) {
+              pickerStatus.textContent = 'GitHub 响应很慢，模板没有下载。' + GITEE_NOTE;
+              pickerStatus.classList.add('error');
+              return;
+            }
+            selectedSource = 'gitee';
+            catalogSource.value = 'gitee';
+            sourceKnown = true;
+            return installRemote(pet, andAdd);
+          }
+          if (!data.ok) {
+            pickerStatus.textContent = data.message || '下载失败';
+            pickerStatus.classList.add('error');
+            return;
+          }
+          packs = data.packs || packs;
+          const pack = packs.find((item) => item.name === pet.id);
+          if (andAdd && pack) {
+            addFromPack(pack);
+            return;
+          }
+          pickerStatus.textContent = '模板「' + (pet.label || pet.name) + '」已更新。';
+          await loadRemotePets();
+        } catch (error) {
+          pickerStatus.textContent = '下载失败：' + error.message;
+          pickerStatus.classList.add('error');
+        }
       }
 
       function renderPackChoices() {
         packPicker.hidden = !picking;
-        packChoices.replaceChildren();
-        for (const pack of packs) {
-          const row = document.createElement('div');
-          row.className = 'pack-choice';
+        setCatalogTab(catalogTab);
+        cloudPane.replaceChildren();
+        localPane.replaceChildren();
+        if (remoteMessage) {
+          const note = document.createElement('p');
+          note.className = 'remote-note' + (remoteError ? ' error' : '');
+          note.style.gridColumn = '1 / -1';
+          note.textContent = remoteMessage;
+          cloudPane.appendChild(note);
+        }
+        if (!remoteMessage && remotePets.length === 0) {
+          const note = document.createElement('p');
+          note.className = 'remote-note';
+          note.style.gridColumn = '1 / -1';
+          note.textContent = '云端还没有模板。';
+          cloudPane.appendChild(note);
+        }
+        for (const pet of remotePets) {
+          const card = document.createElement('article');
+          card.className = 'pet-card';
+          const title = pet.label || pet.name;
+          card.appendChild(previewNode(pet.previewUrl, title));
+          const name = document.createElement('div');
+          name.className = 'card-name';
+          name.textContent = title;
+          const meta = document.createElement('div');
+          meta.className = 'card-meta';
+          meta.textContent = [formatSize(pet.bytes), pet.default ? '默认' : ''].filter(Boolean).join(' · ') || '云端模板';
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+          const local = packs.find((item) => item.name === pet.id);
+          if (pet.imported) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'card-button';
+            button.textContent = '这是我的模板';
+            button.disabled = true;
+            actions.appendChild(button);
+          } else if (!pet.installed || !local) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'card-button';
+            button.textContent = '下载并添加';
+            button.onclick = () => installRemote(pet, true);
+            actions.appendChild(button);
+          } else {
+            if (pet.update) {
+              const update = document.createElement('button');
+              update.type = 'button';
+              update.className = 'card-button';
+              update.textContent = '更新模板';
+              update.onclick = () => installRemote(pet, false);
+              actions.appendChild(update);
+            }
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'card-button';
+            button.textContent = '添加';
+            button.onclick = () => addFromPack(local);
+            actions.appendChild(button);
+          }
+          card.append(name, meta, actions);
+          cloudPane.appendChild(card);
+        }
+        const mine = mineTemplates();
+        if (mine.length === 0) {
+          const note = document.createElement('p');
+          note.className = 'remote-note';
+          note.style.gridColumn = '1 / -1';
+          note.textContent = '还没有自己的模板。可以导入一个，或自定义一只。';
+          localPane.appendChild(note);
+        }
+        for (const pack of mine) {
+          const card = document.createElement('article');
+          card.className = 'pet-card';
+          const title = pack.label || pack.name;
+          const src = pack.hasPreview ? origin + '/77-pet/pet-preview?name=' + encodeURIComponent(pack.name) : '';
+          card.appendChild(previewNode(src, title));
+          const name = document.createElement('div');
+          name.className = 'card-name';
+          name.textContent = title;
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
           const button = document.createElement('button');
           button.type = 'button';
-          button.className = 'pet-chip';
-          button.textContent = pack.label || pack.name;
+          button.className = 'card-button';
+          button.textContent = '添加';
           button.onclick = () => addFromPack(pack);
-          row.appendChild(button);
+          actions.appendChild(button);
           if (!pack.official) {
             const remove = document.createElement('button');
             remove.type = 'button';
             remove.className = 'danger';
-            remove.textContent = '删除种类';
+            remove.textContent = '删除模板';
             remove.onclick = () => removePack(pack);
-            row.appendChild(remove);
+            actions.appendChild(remove);
           }
-          packChoices.appendChild(row);
+          card.append(name, actions);
+          localPane.appendChild(card);
         }
       }
 
       async function removePack(pack) {
-        if (!pack || pack.official) return;
+        if (!isUserTemplate(pack) || pack.official) return;
         const label = pack.label || pack.name;
-        if (!window.confirm('删除「' + label + '」的资源？使用这个种类的桌宠也会去掉。')) return;
+        if (!window.confirm('删除模板「' + label + '」？用这个模板的实例也会去掉。')) return;
         pickerStatus.classList.remove('error');
         status.classList.remove('error');
         pickerStatus.textContent = '正在删除…';
         try {
-          const res = await fetch(origin + '/dsh-pet-7340/pet-packs/remove', {
+          const res = await fetch(origin + '/77-pet/pet-packs/remove', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: pack.name }),
@@ -467,7 +798,8 @@
         }
       }
 
-      function addFromPack(pack) {
+      async function addFromPack(pack) {
+        syncPetFromForm();
         const base = pack.template || {};
         let index = pets.length + 1;
         let id = 'pet' + index;
@@ -484,6 +816,7 @@
           balanceEnabled: base.balanceEnabled !== false,
           whisperEnabled: base.whisperEnabled !== false,
           whisperUseModel: true,
+          hidden: false,
           workStatusEnabled: base.workStatusEnabled !== false,
           fixedEnabled: Boolean(base.fixedEnabled),
           position: {
@@ -492,14 +825,25 @@
             marginY: base.position?.marginY ?? 250,
           },
         };
+        const previous = pets.slice();
+        const previousId = selectedId;
         pets.push(created);
         selectedId = created.id;
         picking = false;
         renderPackChoices();
         renderPetList();
         syncFormFromPet();
-        status.textContent = '';
         pickerStatus.textContent = '';
+        try {
+          await persistPets('已添加「' + created.name + '」');
+        } catch (error) {
+          pets = previous;
+          selectedId = previousId;
+          renderPetList();
+          syncFormFromPet();
+          status.textContent = '添加失败：' + error.message;
+          status.classList.add('error');
+        }
       }
 
       function closePicker() {
@@ -509,12 +853,47 @@
         renderPackChoices();
       }
 
+      addPet.onclick = () => {
+        syncPetFromForm();
+        picking = true;
+        catalogTab = 'cloud';
+        renderPackChoices();
+        void loadRemotePets();
+      };
+      tabCloud.onclick = () => setCatalogTab('cloud');
+      tabLocal.onclick = () => setCatalogTab('local');
+      catalogSource.onchange = () => {
+        selectedSource = catalogSource.value === 'gitee' ? 'gitee' : 'github';
+        sourceKnown = true;
+        void saveCatalogPrefs({ source: selectedSource });
+        void loadRemotePets();
+      };
+      useGitee.onclick = async () => {
+        const ask = askNext.checked;
+        stallLayer.hidden = true;
+        selectedSource = 'gitee';
+        catalogSource.value = 'gitee';
+        sourceKnown = true;
+        await saveCatalogPrefs(ask ? { askOnStall: true } : { source: 'gitee', askOnStall: false });
+        const resolve = stallResolver;
+        stallResolver = null;
+        resolve?.(true);
+      };
+      stayGithub.onclick = async () => {
+        const ask = askNext.checked;
+        stallLayer.hidden = true;
+        await saveCatalogPrefs(ask ? { askOnStall: true } : { source: 'github', askOnStall: false });
+        const resolve = stallResolver;
+        stallResolver = null;
+        resolve?.(false);
+      };
       packPicker.onclick = (event) => {
         if (event.target === packPicker) closePicker();
       };
       cancelPick.onclick = closePicker;
       deletePack.onclick = () => {
-        const pack = packs.find((item) => item.name === petPack.value);
+        const pet = selectedPet();
+        const pack = packs.find((item) => item.name === pet?.pack);
         if (pack) removePack(pack);
       };
 
@@ -527,7 +906,7 @@
         pickerStatus.textContent = '正在导入…';
         importPack.disabled = true;
         try {
-          const res = await fetch(origin + '/dsh-pet-7340/pet-packs/import', {
+          const res = await fetch(origin + '/77-pet/pet-packs/import', {
             method: 'POST',
             headers: { 'content-type': 'application/zip' },
             body: file,
@@ -539,8 +918,9 @@
             return;
           }
           packs = data.packs || packs;
+          catalogTab = 'local';
           renderPackChoices();
-          pickerStatus.textContent = '已导入「' + data.name + '」。点上面的种类即可添加。';
+          pickerStatus.textContent = '已导入模板「' + data.name + '」。';
         } catch (error) {
           pickerStatus.textContent = '导入失败：' + error.message;
           pickerStatus.classList.add('error');
@@ -551,40 +931,81 @@
 
       [petName, petSize, whisperUseModel, petCorner, petMarginX, petMarginY].forEach((input) => {
         input.addEventListener('input', syncPetFromForm);
-        input.addEventListener('change', syncPetFromForm);
+        input.addEventListener('change', () => {
+          syncPetFromForm();
+          renderPetList();
+        });
       });
 
-      deleteButton.onclick = () => {
+      async function persistPets(message) {
+        status.classList.remove('error');
+        status.textContent = '保存中…';
+        const res = await fetch(origin + '/77-pet/pet-config', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ pets }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.message || '保存失败');
+        pets = data.pets || pets;
+        if (!pets.some((pet) => pet.id === selectedId)) selectedId = pets[0]?.id || '';
+        renderPetList();
+        syncFormFromPet();
+        status.textContent = message;
+      }
+
+      hidePet.onclick = async () => {
+        const pet = selectedPet();
+        if (!pet) return;
+        if (pet.hidden !== true && pets.length <= 1) return;
+        syncPetFromForm();
+        const previous = pet.hidden === true;
+        pet.hidden = !previous;
+        renderPetList();
+        syncFormFromPet();
+        hidePet.disabled = true;
+        try {
+          await persistPets(pet.hidden ? '已隐藏「' + pet.name + '」' : '已展示「' + pet.name + '」');
+        } catch (error) {
+          pet.hidden = previous;
+          renderPetList();
+          syncFormFromPet();
+          status.textContent = '保存失败：' + error.message;
+          status.classList.add('error');
+        } finally {
+          syncFormFromPet();
+        }
+      };
+
+      deleteButton.onclick = async () => {
         if (pets.length <= 1) return;
         syncPetFromForm();
-        pets = pets.filter((pet) => pet.id !== selectedId);
+        const previous = pets.slice();
+        const previousId = selectedId;
+        pets = pets.filter((pet) => pet.id !== previousId);
         selectedId = pets[0].id;
         renderPetList();
         syncFormFromPet();
+        deleteButton.disabled = true;
+        try {
+          await persistPets('已删除');
+        } catch (error) {
+          pets = previous;
+          selectedId = previousId;
+          renderPetList();
+          syncFormFromPet();
+          status.textContent = '删除失败：' + error.message;
+          status.classList.add('error');
+        } finally {
+          deleteButton.disabled = pets.length <= 1;
+        }
       };
 
       saveButton.onclick = async () => {
         saveButton.disabled = true;
-        status.classList.remove('error');
         syncPetFromForm();
-        status.textContent = '保存中…';
         try {
-          const res = await fetch(origin + '/dsh-pet-7340/pet-config', {
-            method: 'PUT',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ pets }),
-          });
-          const data = await res.json();
-          if (!data.ok) {
-            status.textContent = data.message || '保存失败';
-            status.classList.add('error');
-            return;
-          }
-          pets = data.pets || pets;
-          selectedId = pets[0]?.id || selectedId;
-          renderPetList();
-          syncFormFromPet();
-          status.textContent = '已保存，桌宠窗口会重新加载';
+          await persistPets('已保存，桌宠窗口会重新加载');
         } catch (error) {
           status.textContent = '保存失败：' + error.message;
           status.classList.add('error');
@@ -606,7 +1027,7 @@
         if (skillMarkdown) return;
         skillText.textContent = '正在读取…';
         try {
-          const res = await fetch(origin + '/dsh-pet-7340/pet-skill');
+          const res = await fetch(origin + '/77-pet/pet-skill');
           if (!res.ok) throw new Error('读取失败');
           skillMarkdown = await res.text();
           skillText.textContent = skillMarkdown;
@@ -641,7 +1062,7 @@
         }
       };
 
-      fetch(origin + '/dsh-pet-7340/pet-config')
+      fetch(origin + '/77-pet/pet-config')
         .then((res) => res.json())
         .then((data) => {
           pets = data.pets || [];

@@ -1,5 +1,5 @@
 /**
- * dsh-pet desktop helper —— 宠物本体（PetSprite 类）。
+ * 77-pet desktop helper —— 宠物本体（PetSprite 类）。
  *
  * 播放 / 拖拽抛掷 / 跨窗碰撞 / 点击穿透 / 右键菜单 / 聊天弹窗 / 气泡渲染。
  * 事件联动（余额 / 碎碎念 / 广播 / 工作状态）不在此文件——见 events.js。
@@ -22,7 +22,7 @@ class PetSprite {
     this.bottomPad = (this.size * (9 / 16) * (S.CANVAS_H - S.FEET_Y)) / S.CANVAS_H;
     // 窗口高 = 舞台高 + 脚底垫高（stage 被 translateY(bottomPad) 下移的余量，防底部被窗口裁剪）
     this.winH = this.height + this.bottomPad;
-    // 窗口内【可交互区域】= 身体命中区（像素，窗口坐标）。浏览器 overlay 只有 .dsh-pet-hit 是
+    // 窗口内【可交互区域】= 身体命中区（像素，窗口坐标）。浏览器 overlay 只有 .pet77-hit 是
     // pointer-events:auto（root/stage/气泡全 none）——桌面严格对齐：命中区外含透明像素一律穿透到下层应用。
     // HIT_BOX 是 640×360 舞台坐标：x 按窗口宽缩放；y 除舞台高外还要加 bottomPad（舞台被下移）。
     this.hitRect = {
@@ -31,16 +31,16 @@ class PetSprite {
       w: ((S.HIT_BOX.x1 - S.HIT_BOX.x0) / 640) * this.size,
       h: ((S.HIT_BOX.y1 - S.HIT_BOX.y0) / 360) * this.height,
     };
-    window.__dshPetDebug.hitRect = this.hitRect;
+    window.__pet77Debug.hitRect = this.hitRect;
     // 左右透明边余量（视频盒内宠物身体居中）：让边界按"身体"贴边——宠物能走到屏幕边缘，
     // 但身体永不越界（漫游/拖拽都不会弄丢宠物）。与浏览器 overlay 的 sideAllow 同一套语义。
     this.sideAllow = (S.HIT_BOX.x0 / 640) * this.size;
-    window.__dshPetDebug.sideAllow = this.sideAllow;
+    window.__pet77Debug.sideAllow = this.sideAllow;
     // 窗口四周外扩（= WINDOW_MARGIN_RATIO×宠物尺寸）：sprite 钉在 (margin.l, margin.t)，
     // 窗口 = sprite + 四边余量——气泡/未来弹窗显示在余量里；余量透明且点击穿透
     const m = this.size * WINDOW_MARGIN_RATIO;
     this.margin = { t: m, r: m, b: m, l: m };
-    window.__dshPetDebug.winMargin = this.margin;
+    window.__pet77Debug.winMargin = this.margin;
     // 宠物包围盒左上角在【工作区】坐标系里的位置（本窗口的位置 = 宠物的位置）
     this.pos = { x: 0, y: 0 };
 
@@ -107,7 +107,7 @@ class PetSprite {
     this.whisperText = '';
     // 配图名称（配置 memes 的键；whisperImageEnabled 开启时由 host 随机抽定，随文本一起来）
     this.whisperImage = '';
-    // 工作状态联动（DSH 会话状态）：容器 1s 轮询 /state 递增 workTick → 本宠物按档位播动画+气泡。
+    // 工作状态联动（ 会话状态）：容器 1s 轮询 /state 递增 workTick → 本宠物按档位播动画+气泡。
     // 气泡单槽优先级 终态任务 > whisper > balance > 非终态任务（见 renderBubble）；
     // workStatusEnabled 未启用时完全免疫（与浏览器一致）
     this.workOn = false;
@@ -267,7 +267,7 @@ class PetSprite {
   // 主进程侧（bounds/去重/碰撞 broker）完全不用改。
   sendBounds(px, py) {
     this.pos = { x: Math.round(px), y: Math.round(py) };
-    window.__dshPetDebug.dragPos = { x: this.pos.x, y: this.pos.y };
+    window.__pet77Debug.dragPos = { x: this.pos.x, y: this.pos.y };
     if (window.petBridge) {
       // 完整状态一次捎带：size/bottomPad 让静止宠物从首帧起就登记进碰撞站场
       // （此前只有 report-flight 带尺寸，从没飞过的宠物 size=0 被碰撞检测直接跳过）；
@@ -391,7 +391,7 @@ class PetSprite {
     const loadGuard = (why) => {
       if (!this.pending || this.pending.gen !== gen) return;
       this.pending = null;
-      console.warn('[dsh-pet] 素材加载失败 pet=' + this.pet.id + ' anim=' + next + '：' + why + '（已释放本次切换）');
+      console.warn('[77-pet] 素材加载失败 pet=' + this.pet.id + ' anim=' + next + '：' + why + '（已释放本次切换）');
     };
     const loadTimer = window.setTimeout(() => loadGuard('10s 超时'), 10000);
     el.onerror = () => {
@@ -478,7 +478,7 @@ class PetSprite {
       const nextWork = nonTerminal ? S.nextWorkStatusAnim(animations.events?.workStatus ?? [], this.anim) : null;
       if (nextWork !== null) {
         console.log(
-          '[dsh-pet] ' +
+          '[77-pet] ' +
             new Date().toTimeString().slice(0, 8) +
             ' pet=' +
             this.pet.id +
@@ -521,7 +521,7 @@ class PetSprite {
     if (slot === undefined) return false;
     const name = S.pickSlot(slot, this.anim); // 避开当前正播动画（避免连续重复）
     console.log(
-      '[dsh-pet] ' + new Date().toTimeString().slice(0, 8) + ' pet=' + this.pet.id + ' 恢复工作状态动画: ' + name,
+      '[77-pet] ' + new Date().toTimeString().slice(0, 8) + ' pet=' + this.pet.id + ' 恢复工作状态动画: ' + name,
     );
     const rotating = Array.isArray(slot) && slot.length > 1;
     if (rotating)
@@ -732,7 +732,7 @@ class PetSprite {
         this.throwRef = null;
         this.throwState = null;
         this.customPos = { rx: (this.pos.x + this.halfW) / VIEW.w, ry: (this.pos.y + this.halfH) / VIEW.h };
-        window.__dshPetDebug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
+        window.__pet77Debug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
         return;
       }
       this.throwRef = requestAnimationFrame(step);
@@ -790,7 +790,7 @@ class PetSprite {
     // 抓取速度日志：stopThrow 之前读，否则飞行速度就没了；静止时记录 0（与浏览器同构）
     const grabState = this.throwState;
     console.log(
-      '[dsh-pet] ' +
+      '[77-pet] ' +
         new Date().toTimeString().slice(0, 8) +
         ' pet=' +
         this.pet.id +
@@ -810,7 +810,7 @@ class PetSprite {
       if (grabSpeed >= S.SCORE_MIN_SPEED) {
         this.pressScoreFired = true;
         console.log(
-          '[dsh-pet] ' +
+          '[77-pet] ' +
             new Date().toTimeString().slice(0, 8) +
             ' pet=' +
             this.pet.id +
@@ -921,7 +921,7 @@ class PetSprite {
       }, 100);
       if (e && Number.isFinite(e.screenX)) {
         // 原始输入留痕（实机排查用：验证指针屏幕坐标与窗口位移是否一致，如 DPI 缩放问题）
-        window.__dshPetDebug.lastDragRaw = {
+        window.__pet77Debug.lastDragRaw = {
           petX: d.petX,
           petY: d.petY,
           sxDown: d.sx,
@@ -945,7 +945,7 @@ class PetSprite {
       this.dragTrail = [];
       if (vel) {
         console.log(
-          '[dsh-pet] ' +
+          '[77-pet] ' +
             new Date().toTimeString().slice(0, 8) +
             ' pet=' +
             this.pet.id +
@@ -963,7 +963,7 @@ class PetSprite {
         this.customPos = { rx: (px + this.halfW) / VIEW.w, ry: (py + this.halfH) / VIEW.h };
         this.position();
         // 释放后的最终窗口位置（position() 换算后，松手无夹取），冒烟断言"释放不位移"用
-        window.__dshPetDebug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
+        window.__pet77Debug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
       }
     }
   }
@@ -993,14 +993,14 @@ class PetSprite {
     const busy = this.inputBusy();
     if (busy === this._inputBusy) return;
     this._inputBusy = busy;
-    window.__dshPetDebug.inputBusy = busy;
+    window.__pet77Debug.inputBusy = busy;
     if (window.petBridge) window.petBridge.setInputBusy(busy);
   }
 
   syncInputRegions() {
     if (!window.petBridge || !window.petBridge.setInputRegions) return;
     const rects = [];
-    const controls = [...document.querySelectorAll('.dsh-pet-menu-column, .dsh-pet-chat')];
+    const controls = [...document.querySelectorAll('.pet77-menu-column, .pet77-chat')];
     for (const el of this.inputRegionElements) {
       if (!controls.includes(el)) {
         this.inputRegionResize.unobserve(el);
@@ -1028,7 +1028,7 @@ class PetSprite {
     const next = !!flag;
     if (next === this._interactive) return; // 只在状态变化时发 IPC，避免逐帧刷屏
     this._interactive = next;
-    window.__dshPetDebug.interactive = next;
+    window.__pet77Debug.interactive = next;
     if (window.petBridge) window.petBridge.setInteractive(next);
   }
 
@@ -1081,7 +1081,7 @@ class PetSprite {
       this.tip.style.top = p.y + 'px';
     }
     this.tip.classList.toggle('is-on', this.tipOn);
-    window.__dshPetDebug.tooltipOn = this.tipOn;
+    window.__pet77Debug.tooltipOn = this.tipOn;
   }
 
   onMouseMove(e) {
@@ -1176,7 +1176,7 @@ class PetSprite {
     this.stopMove(); // 菜单悬停期间宠物不漫游
     // 桌面专属工具根项（打开网站 / 查看余额 / 碎碎念 / 对话 / 回到初始位置 / 重载配置）+ 共享菜单树（动作→分类→具体动画）
     // 碎碎念/对话项无条件显示：手动触发不受 whisperEnabled 限制（该字段只影响自动周期轮询）
-    // 首项文案随宿主形态变（OPEN_TARGET）：宿主是 DSH 桌面应用时点是"唤起桌面应用窗口"，仍叫「打开网站」会误导
+    // 桌面宿主里这一项叫「打开 DeepSeek Harness」，否则叫「打开网站」。
     const tools = [{ label: OPEN_TARGET === 'desktop' ? '打开 DeepSeek Harness' : '打开网站', action: 'open-site' }];
     if (this.pet.balanceEnabled) tools.push({ label: '查看余额', action: 'show-balance' });
     tools.push(
@@ -1192,7 +1192,7 @@ class PetSprite {
     this.menuOpen = true;
     this.setInteractive(true); // 菜单是窗口内 DOM：悬停期间整窗保持可交互，关闭后恢复命中区穿透
     this.syncInputBusy();
-    window.__dshPetDebug.menuOpen = true;
+    window.__pet77Debug.menuOpen = true;
     const m = S.mountContextMenu({
       tree,
       x: e.clientX,
@@ -1203,7 +1203,7 @@ class PetSprite {
       // 菜单被点外/Esc 关闭（非菜单项路径）：同样复位可交互标记，恢复命中区判定
       onClose: () => {
         this.menuOpen = false;
-        window.__dshPetDebug.menuOpen = false;
+        window.__pet77Debug.menuOpen = false;
         this.syncInputBusy();
         if (!this.inputBusy()) this.setInteractive(false);
       },
@@ -1216,7 +1216,7 @@ class PetSprite {
     this.closeMenu();
     if (!leaf || typeof leaf !== 'object') return;
     if (leaf.action === 'open-site') {
-      if (window.petBridge) window.petBridge.openDshSite(ORIGIN); // 系统默认浏览器打开（等效 Ctrl+点击链接）
+      if (window.petBridge) window.petBridge.openSite(ORIGIN); // 系统默认浏览器打开（等效 Ctrl+点击链接）
       return;
     }
     if (leaf.action === 'show-balance') {
@@ -1263,7 +1263,7 @@ class PetSprite {
       this.menuClose = null;
     }
     this.menuOpen = false;
-    window.__dshPetDebug.menuOpen = false;
+    window.__pet77Debug.menuOpen = false;
     this.syncInputBusy(); // 菜单关：若没有别的占用（拖拽/弹窗）则交还常规判定
     if (!this.inputBusy()) this.setInteractive(false);
   }
@@ -1275,11 +1275,11 @@ class PetSprite {
     if (!this.pet.balanceEnabled) return;
     S.postAction(BALANCE_URL)
       .then((ok) => {
-        if (!ok) console.warn('[dsh-pet] 菜单查看余额：刷新动作未成功');
+        if (!ok) console.warn('[77-pet] 菜单查看余额：刷新动作未成功');
         pollStateNow(); // 立即拉一拍：结果 0 延迟可见（失败也会由 /state 里的 ok:false 弹文字说明）
       })
       .catch((e) => {
-        console.error('[dsh-pet] 菜单查看余额异常', e);
+        console.error('[77-pet] 菜单查看余额异常', e);
       });
   }
 
@@ -1289,11 +1289,11 @@ class PetSprite {
   showWhisperFromMenu() {
     S.postAction(WHISPER_URL + '?pet=' + encodeURIComponent(this.pet.id))
       .then((ok) => {
-        if (!ok) console.warn('[dsh-pet] 菜单碎碎念：生成动作未成功 pet=' + this.pet.id);
+        if (!ok) console.warn('[77-pet] 菜单碎碎念：生成动作未成功 pet=' + this.pet.id);
         pollStateNow(); // 立即拉一拍：文本随这一拍到达并展示
       })
       .catch((e) => {
-        console.warn('[dsh-pet] 菜单碎碎念异常', e);
+        console.warn('[77-pet] 菜单碎碎念异常', e);
       });
   }
 
@@ -1318,20 +1318,20 @@ class PetSprite {
       clamp: this.visibleClampRect(),
       onSent: () => {
         // 发送成功：回复已写进 S，立刻跑一拍 /state 让气泡 0 延迟出现（不必等下一个 1s）
-        console.info('[dsh-pet] 对话已发送 pet=' + this.pet.id);
+        console.info('[77-pet] 对话已发送 pet=' + this.pet.id);
         pollStateNow();
       },
       onClose: () => {
         this.chatClose = null;
         this.chatOpen = false;
-        window.__dshPetDebug.chatOpen = false;
+        window.__pet77Debug.chatOpen = false;
         this.syncInputBusy(); // 弹窗关：交还常规判定（菜单还开着的话仍保持忙，见 inputBusy）
         if (!this.menuOpen) this.setInteractive(false); // 弹窗关了且无菜单：恢复命中区穿透
       },
     });
     this.chatClose = m.close;
     this.chatOpen = true; // 穿透守卫：弹窗期间整窗保持可交互，光标移到输入框不被翻回穿透
-    window.__dshPetDebug.chatOpen = true;
+    window.__pet77Debug.chatOpen = true;
     this.syncInputBusy();
     this.setInteractive(true);
   }
@@ -1346,21 +1346,21 @@ class PetSprite {
 
   // 「重载配置」菜单：请宿主重启桌面 Helper —— 与设置页「保存」**同一条**重启路径
   // （宿主 POST /reload → syncDesktop：串行队列 + 等旧进程真正退出再起新的）。
-  // 为什么不在渲染端就地重拉配置：① 每只宠物一个窗口是宿主按 DSH_PET_PETS 建的，
+  // 为什么不在渲染端就地重拉配置：① 每只宠物一个窗口是宿主按 PET77_PETS 建的，
   // 就地重拉改不了宠物数量/display/size；② 本页的余额/工作状态等全局轮询是一次性启动的
   // （events.js 的 loopsStarted 门控），就地重建 sprite 会漏启新循环或留下旧定时器。
   // 本请求由**即将被重启的这个进程**发出：响应可能永远不回（宿主杀进程时回调地址已失效），
   // 故不 await、不重试，失败只记日志——重载本身就是把本进程换掉。
   reloadDesktop() {
     fetch(BASE + '/reload', { method: 'POST' }).catch((e) => {
-      console.warn('[dsh-pet] 重载配置请求失败（宿主不可达？）', e);
+      console.warn('[77-pet] 重载配置请求失败（宿主不可达？）', e);
     });
   }
 
   // 「显示位置」菜单：改**这一只**宠物的 display（仅网页/仅桌面/两者/都不）—— 写它自己的配置，
   // 再由宿主重载生效。取值直接来自菜单项（shared 的 displayMenuBranch），渲染端不做任何推导：
   // 当前状态以配置为准，推导只会多一处可能与真相不符的猜测（旧实现的 both→web 就是这种猜测）。
-  // 为什么不在渲染端就地关窗/开窗：桌面宠物共用一个 Electron 进程，窗口是进程启动时按 DSH_PET_PETS
+  // 为什么不在渲染端就地关窗/开窗：桌面宠物共用一个 Electron 进程，窗口是进程启动时按 PET77_PETS
   // 一次性建的——就地增删窗口既改不了磁盘配置（宿主下次重载它又回来），也改不了窗口数量。
   // 与 reloadDesktop 同一处境：选"仅网页/都不"时本进程就会在重载中被换掉，响应可能永远不回
   // （宿主杀进程时回调地址已失效），故不 await、不重试，失败只记日志。
@@ -1371,7 +1371,7 @@ class PetSprite {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ id: this.pet.id, display }),
     }).catch((e) => {
-      console.warn('[dsh-pet] 显示位置请求失败（宿主不可达？）', e);
+      console.warn('[77-pet] 显示位置请求失败（宿主不可达？）', e);
     });
   }
 
@@ -1399,7 +1399,7 @@ class PetSprite {
     if (slot === 'none') {
       // 三者都没有可显示的内容：隐藏（不占位，也就不会挡住任何一层）
       this.bubble.classList.remove('is-on');
-      window.__dshPetDebug.lastBubbleTitle = '';
+      window.__pet77Debug.lastBubbleTitle = '';
       return;
     }
     this.bubble.innerHTML = '';
@@ -1441,6 +1441,6 @@ class PetSprite {
       }
     }
     this.bubble.classList.add('is-on');
-    window.__dshPetDebug.lastBubbleTitle = this.bubble.textContent.slice(0, 60);
+    window.__pet77Debug.lastBubbleTitle = this.bubble.textContent.slice(0, 60);
   }
 }

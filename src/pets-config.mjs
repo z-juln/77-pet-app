@@ -1,5 +1,5 @@
 /**
- * 用户层桌宠列表（名字、大小、位置、显示方式），存 ~/.dsh-pet-app/pets.json
+ * 用户层桌宠列表（名字、大小、位置、显示方式），存 ~/.77-pet-app/pets.json
  */
 
 export const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
@@ -30,6 +30,7 @@ export function normalizeUserPet(pet, baseById = {}) {
     name: String(pet?.name ?? base.name ?? id).trim() || id,
     size: Number.isFinite(size) && size > 0 ? Math.round(size) : 462,
     display,
+    hidden: pet?.hidden === true,
     balanceEnabled: pet?.balanceEnabled ?? base.balanceEnabled ?? true,
     whisperEnabled: pet?.whisperEnabled ?? base.whisperEnabled ?? true,
     whisperUseModel:

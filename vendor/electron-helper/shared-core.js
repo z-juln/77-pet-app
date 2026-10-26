@@ -495,7 +495,7 @@ var PetShared = (() => {
     const msg = state.reason === "provider-missing" ? "\u5F53\u524D\u5BF9\u8BDD\u672A\u914D\u7F6E\u6A21\u578B\uFF0C\u788E\u788E\u5FF5\u4E0D\u53EF\u7528" : "\u788E\u788E\u5FF5\u751F\u6210\u5931\u8D25" + (state.message ? "\uFF1A" + state.message : "");
     return [{ role: "label", text: msg }];
   }
-  function memeImageUrl(name, base = "/dsh-pet-7340", assetRoot = "") {
+  function memeImageUrl(name, base = "/77-pet", assetRoot = "") {
     const root = String(assetRoot ?? "").trim();
     const prefix = root ? "/pic/memes/" + encodeURIComponent(root) : "/pic/memes";
     return base + prefix + "/" + encodeURIComponent(name) + ".png";
@@ -503,24 +503,24 @@ var PetShared = (() => {
   var MEME_IMG_CLASS = "pet-bub-img";
   var MEME_BUBBLE_CLASS = "has-img";
   var MEME_BUBBLE_CSS = [
-    ".pet-bub-img{display:block;width:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.34);height:auto;",
-    "border-radius:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.026);",
-    "margin:0 auto calc(var(--dsh-pet-size,var(--pet-size,462px))*0.017);object-fit:cover;",
+    ".pet-bub-img{display:block;width:calc(var(--pet77-size,var(--pet-size,462px))*0.34);height:auto;",
+    "border-radius:calc(var(--pet77-size,var(--pet-size,462px))*0.026);",
+    "margin:0 auto calc(var(--pet77-size,var(--pet-size,462px))*0.017);object-fit:cover;",
     "pointer-events:none;user-select:none}",
-    ".pet-bubble.has-img,.dsh-pet-bubble.has-img{min-width:0}"
+    ".pet-bubble.has-img,.pet77-bubble.has-img{min-width:0}"
   ].join("");
   var memeCssInjected = false;
   function injectMemeBubbleCss() {
     if (memeCssInjected || typeof document === "undefined") return;
     memeCssInjected = true;
-    if (document.querySelector('style[data-plugin-css="dsh-pet/meme-bubble"]') !== null) return;
+    if (document.querySelector('style[data-plugin-css="77-pet/meme-bubble"]') !== null) return;
     const tag = document.createElement("style");
-    tag.dataset.plugin = "dsh-pet";
-    tag.dataset.pluginCss = "dsh-pet/meme-bubble";
+    tag.dataset.plugin = "77-pet";
+    tag.dataset.pluginCss = "77-pet/meme-bubble";
     tag.textContent = MEME_BUBBLE_CSS;
     document.head.appendChild(tag);
   }
-  function createMemeImage(name, base = "/dsh-pet-7340", assetRoot = "") {
+  function createMemeImage(name, base = "/77-pet", assetRoot = "") {
     const key = String(name ?? "").trim();
     if (!key) return null;
     injectMemeBubbleCss();
@@ -658,28 +658,28 @@ var PetShared = (() => {
     return (categories ?? []).some((c) => c.noMirror === true && Array.isArray(c.actions) && c.actions.includes(anim));
   }
   var MENU_CSS = [
-    ".dsh-pet-menu{position:fixed;left:0;top:0;z-index:2147483000;color:#2b2b2b;font-size:13px;line-height:1.5;",
+    ".pet77-menu{position:fixed;left:0;top:0;z-index:2147483000;color:#2b2b2b;font-size:13px;line-height:1.5;",
     "font-family:'Microsoft YaHei UI','Segoe UI','PingFang SC',sans-serif;user-select:none;pointer-events:auto}",
-    ".dsh-pet-menu,.dsh-pet-menu *{box-sizing:border-box}",
-    ".dsh-pet-menu-column{position:absolute;min-width:150px;max-width:240px;padding:4px;",
+    ".pet77-menu,.pet77-menu *{box-sizing:border-box}",
+    ".pet77-menu-column{position:absolute;min-width:150px;max-width:240px;padding:4px;",
     "background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.12);border-radius:8px;",
     "box-shadow:0 8px 28px rgba(0,0,0,.2);max-height:min(62vh,460px);overflow-y:auto;",
     // 自定义滚动条：细圆角半透明条（Chromium 系 Chrome/Edge/Electron 走 ::-webkit-scrollbar；
     // Firefox 走 scrollbar-width/scrollbar-color）。thumb 用 border+background-clip 内缩 2px 留白，
     // 与菜单的圆角白底协调；hover 加深并与 item:hover 的蓝呼应。track 透明不抢视觉。
     "scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent}",
-    ".dsh-pet-menu-column::-webkit-scrollbar{width:8px;height:8px}",
-    ".dsh-pet-menu-column::-webkit-scrollbar-track{background:transparent}",
-    ".dsh-pet-menu-column::-webkit-scrollbar-thumb{background:rgba(0,0,0,.16);border-radius:4px;",
+    ".pet77-menu-column::-webkit-scrollbar{width:8px;height:8px}",
+    ".pet77-menu-column::-webkit-scrollbar-track{background:transparent}",
+    ".pet77-menu-column::-webkit-scrollbar-thumb{background:rgba(0,0,0,.16);border-radius:4px;",
     "border:2px solid transparent;background-clip:content-box}",
-    ".dsh-pet-menu-column::-webkit-scrollbar-thumb:hover{background:rgba(43,99,255,.4);",
+    ".pet77-menu-column::-webkit-scrollbar-thumb:hover{background:rgba(43,99,255,.4);",
     "border:2px solid transparent;background-clip:content-box}",
-    ".dsh-pet-menu-column::-webkit-scrollbar-corner{background:transparent}",
-    ".dsh-pet-menu-item{position:relative;display:flex;align-items:center;justify-content:space-between;",
+    ".pet77-menu-column::-webkit-scrollbar-corner{background:transparent}",
+    ".pet77-menu-item{position:relative;display:flex;align-items:center;justify-content:space-between;",
     "gap:14px;padding:5px 12px;border-radius:6px;white-space:nowrap;cursor:default}",
-    ".dsh-pet-menu-item:hover{background:rgba(43,99,255,.14)}",
-    ".dsh-pet-menu-item>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}",
-    ".dsh-pet-menu-arrow{color:#9aa0a6;font-size:12px;flex:none}"
+    ".pet77-menu-item:hover{background:rgba(43,99,255,.14)}",
+    ".pet77-menu-item>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}",
+    ".pet77-menu-arrow{color:#9aa0a6;font-size:12px;flex:none}"
   ].join("");
   function isBranchNode(n) {
     return "children" in n && Array.isArray(n.children);
@@ -688,7 +688,7 @@ var PetShared = (() => {
     const { tree, x, y, onAction, onClose, clamp } = opts;
     const c = clamp && Number.isFinite(clamp.x + clamp.y + clamp.w + clamp.h) ? clamp : { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
     const root = document.createElement("div");
-    root.className = "dsh-pet-menu";
+    root.className = "pet77-menu";
     root.style.left = "0px";
     root.style.top = "0px";
     root.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -718,19 +718,19 @@ var PetShared = (() => {
     };
     const buildPanel = (nodes) => {
       const panel = document.createElement("div");
-      panel.className = "dsh-pet-menu-column";
+      panel.className = "pet77-menu-column";
       panel.style.display = "none";
       if (clamp) panel.style.maxHeight = Math.min(460, Math.max(120, c.h - 16)) + "px";
       root.appendChild(panel);
       for (const node of nodes) {
         const item = document.createElement("div");
-        item.className = "dsh-pet-menu-item";
+        item.className = "pet77-menu-item";
         if (isBranchNode(node)) {
-          item.classList.add("dsh-pet-menu-branch");
+          item.classList.add("pet77-menu-branch");
           const label = document.createElement("span");
           label.textContent = node.label;
           const arrow = document.createElement("span");
-          arrow.className = "dsh-pet-menu-arrow";
+          arrow.className = "pet77-menu-arrow";
           arrow.textContent = "\u25B8";
           item.appendChild(label);
           item.appendChild(arrow);
@@ -812,7 +812,7 @@ var PetShared = (() => {
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS)
     });
     const raw = await res.json().catch(() => null);
-    if (!raw || typeof raw !== "object") throw new Error("dsh-pet: \u5BF9\u8BDD\u54CD\u5E94\u975E\u6CD5");
+    if (!raw || typeof raw !== "object") throw new Error("77-pet: \u5BF9\u8BDD\u54CD\u5E94\u975E\u6CD5");
     const o = raw;
     if (o.ok !== true) {
       return {
@@ -824,19 +824,19 @@ var PetShared = (() => {
     return { ok: true };
   }
   var CHAT_CSS = [
-    ".dsh-pet-chat{position:fixed;z-index:2147483001;width:160px;max-width:80vw;",
+    ".pet77-chat{position:fixed;z-index:2147483001;width:160px;max-width:80vw;",
     "background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.12);border-radius:10px;",
     "box-shadow:0 10px 32px rgba(0,0,0,.22);color:#2b2b2b;font-size:14px;line-height:1.5;",
     // 字体与桌宠气泡同款（上首软糖体，两端均已注入 @font-face），风格一致不显正式
     "font-family:'ShangshouSoftCandy','Yuanti SC','YouYuan','\u5E7C\u5706','Comic Sans MS','PingFang SC','Microsoft YaHei',sans-serif;",
     "user-select:none}",
-    ".dsh-pet-chat *{box-sizing:border-box}",
-    ".dsh-pet-chat-input{display:block;width:100%;border:none;outline:none;background:transparent;",
+    ".pet77-chat *{box-sizing:border-box}",
+    ".pet77-chat-input{display:block;width:100%;border:none;outline:none;background:transparent;",
     "padding:8px 11px 9px;font-size:14px;line-height:1.45;color:#2b2b2b;font-family:inherit;",
     "resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}",
-    ".dsh-pet-chat-input::placeholder{color:rgba(43,43,43,.45)}",
-    ".dsh-pet-chat-input:disabled{opacity:.55}",
-    ".dsh-pet-chat-err{color:#d94f3d;font-size:12px;padding:0 12px 8px;white-space:pre-wrap;overflow-wrap:anywhere}"
+    ".pet77-chat-input::placeholder{color:rgba(43,43,43,.45)}",
+    ".pet77-chat-input:disabled{opacity:.55}",
+    ".pet77-chat-err{color:#d94f3d;font-size:12px;padding:0 12px 8px;white-space:pre-wrap;overflow-wrap:anywhere}"
   ].join("");
   var CHAT_MIN_W = 160;
   var CHAT_MAX_W = 340;
@@ -846,21 +846,21 @@ var PetShared = (() => {
     if (chatCssInjected || typeof document === "undefined") return;
     chatCssInjected = true;
     const tag = document.createElement("style");
-    tag.dataset.plugin = "dsh-pet";
-    tag.dataset.pluginCss = "dsh-pet/chat";
+    tag.dataset.plugin = "77-pet";
+    tag.dataset.pluginCss = "77-pet/chat";
     tag.textContent = CHAT_CSS;
     document.head.appendChild(tag);
   }
   function mountChatDialog(opts) {
     injectChatCss();
     const { petId, x, y, onSent, onClose, clamp } = opts;
-    const baseUrl = opts.baseUrl ?? "/dsh-pet-7340/chat";
+    const baseUrl = opts.baseUrl ?? "/77-pet/chat";
     const withPet = baseUrl + "?pet=" + encodeURIComponent(petId);
     const c = clamp && Number.isFinite(clamp.x + clamp.y + clamp.w + clamp.h) ? clamp : { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
     const root = document.createElement("div");
-    root.className = "dsh-pet-chat";
+    root.className = "pet77-chat";
     const input = document.createElement("textarea");
-    input.className = "dsh-pet-chat-input";
+    input.className = "pet77-chat-input";
     input.placeholder = "\u8BF4\u70B9\u4EC0\u4E48\u2026";
     input.maxLength = 2e3;
     input.rows = 1;
@@ -880,7 +880,7 @@ var PetShared = (() => {
     input.addEventListener("input", resizeInput);
     resizeInput();
     const err = document.createElement("div");
-    err.className = "dsh-pet-chat-err";
+    err.className = "pet77-chat-err";
     err.style.display = "none";
     root.appendChild(input);
     root.appendChild(err);
@@ -1209,25 +1209,25 @@ var PetShared = (() => {
   var SCORE_POPUP_DURATION_MS = 2200;
   var SCORE_POPUP_CSS = [
     // 积分卡片：金色主值 + 灰色明细，居中，弹出动画
-    ".dsh-pet-score{position:fixed;z-index:2147483002;min-width:120px;text-align:center;",
+    ".pet77-score{position:fixed;z-index:2147483002;min-width:120px;text-align:center;",
     "background:rgba(255,255,255,.97);border:1px solid rgba(255,179,0,.35);border-radius:12px;",
     "box-shadow:0 10px 32px rgba(0,0,0,.22);padding:8px 16px 9px;user-select:none;pointer-events:auto;",
     "font-family:'ShangshouSoftCandy','Yuanti SC','YouYuan','\u5E7C\u5706','Comic Sans MS','PingFang SC','Microsoft YaHei',sans-serif;}",
-    ".dsh-pet-score.is-in{animation:dshPetScorePop .28s ease}",
-    ".dsh-pet-score-val{font-size:22px;line-height:1.25;font-weight:700;color:#ff8f00;font-variant-numeric:tabular-nums}",
-    ".dsh-pet-score-sub{font-size:11px;line-height:1.4;color:rgba(43,43,43,.6);margin-top:2px;white-space:nowrap}",
+    ".pet77-score.is-in{animation:pet77ScorePop .28s ease}",
+    ".pet77-score-val{font-size:22px;line-height:1.25;font-weight:700;color:#ff8f00;font-variant-numeric:tabular-nums}",
+    ".pet77-score-sub{font-size:11px;line-height:1.4;color:rgba(43,43,43,.6);margin-top:2px;white-space:nowrap}",
     // 粒子层：整屏固定、不挡交互；粒子为绝对定位小圆点，位移/透明度由 rAF 直接写
-    ".dsh-pet-score-burst{position:fixed;inset:0;pointer-events:none;z-index:2147483002}",
-    ".dsh-pet-score-particle{position:absolute;border-radius:50%;pointer-events:none}",
-    "@keyframes dshPetScorePop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}"
+    ".pet77-score-burst{position:fixed;inset:0;pointer-events:none;z-index:2147483002}",
+    ".pet77-score-particle{position:absolute;border-radius:50%;pointer-events:none}",
+    "@keyframes pet77ScorePop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}"
   ].join("");
   var scoreCssInjected = false;
   function injectScoreCss() {
     if (scoreCssInjected || typeof document === "undefined") return;
     scoreCssInjected = true;
     const tag = document.createElement("style");
-    tag.dataset.plugin = "dsh-pet";
-    tag.dataset.pluginCss = "dsh-pet/score";
+    tag.dataset.plugin = "77-pet";
+    tag.dataset.pluginCss = "77-pet/score";
     tag.textContent = SCORE_POPUP_CSS;
     document.head.appendChild(tag);
   }
@@ -1244,7 +1244,7 @@ var PetShared = (() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     injectScoreCss();
     const root = document.createElement("div");
-    root.className = "dsh-pet-score-burst";
+    root.className = "pet77-score-burst";
     document.body.appendChild(root);
     const parts = [];
     for (let i = 0; i < BURST_COUNT; i++) {
@@ -1252,7 +1252,7 @@ var PetShared = (() => {
       const speed = BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN);
       const r = BURST_RADIUS_MIN + Math.random() * (BURST_RADIUS_MAX - BURST_RADIUS_MIN);
       const el = document.createElement("div");
-      el.className = "dsh-pet-score-particle";
+      el.className = "pet77-score-particle";
       el.style.left = x + "px";
       el.style.top = y + "px";
       el.style.width = r * 2 + "px";
@@ -1288,12 +1288,12 @@ var PetShared = (() => {
     const x = opts.x;
     const y = opts.y;
     const root = document.createElement("div");
-    root.className = "dsh-pet-score";
+    root.className = "pet77-score";
     const val = document.createElement("div");
-    val.className = "dsh-pet-score-val";
+    val.className = "pet77-score-val";
     val.textContent = "+" + opts.score;
     const sub = document.createElement("div");
-    sub.className = "dsh-pet-score-sub";
+    sub.className = "pet77-score-sub";
     sub.textContent = "\u901F\u5EA6 " + Math.round(opts.speed) + " \xB7 \u5927\u5C0F " + Math.round(opts.size);
     root.appendChild(val);
     root.appendChild(sub);
@@ -1366,7 +1366,7 @@ var PetShared = (() => {
     if (typeof leaf2.counter !== "number" || !Number.isFinite(leaf2.counter)) return null;
     return { counter: leaf2.counter, data: leaf2.data ?? null };
   }
-  async function fetchState(baseUrl = "/dsh-pet-7340/state") {
+  async function fetchState(baseUrl = "/77-pet/state") {
     try {
       const res = await fetch(baseUrl, { cache: "no-store" });
       if (!res.ok) return null;
@@ -1472,9 +1472,9 @@ var PetShared = (() => {
     ".pet-tooltip{",
     // fixed + 坐标由 JS 按光标写（见 tooltipPlacement）：left/top 只是未定位前的兜底，不会显示出来
     "position:fixed;left:0;top:0;",
-    "max-width:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.8);",
-    "padding:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.010) calc(var(--dsh-pet-size,var(--pet-size,462px))*0.021);",
-    "border-radius:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.016);",
+    "max-width:calc(var(--pet77-size,var(--pet-size,462px))*0.8);",
+    "padding:calc(var(--pet77-size,var(--pet-size,462px))*0.010) calc(var(--pet77-size,var(--pet-size,462px))*0.021);",
+    "border-radius:calc(var(--pet77-size,var(--pet-size,462px))*0.016);",
     // 白底黑字（对齐原生提示的观感；文字色与气泡一致）——深色胶囊落在浅色宠物身上太抢眼
     "background:rgba(255,255,255,.96);color:#1f1f1f;",
     // 细边框：白底压到浅色宠物或浅色页面上会糊成一片，靠它划出轮廓（原生提示也有一道边）
@@ -1482,11 +1482,11 @@ var PetShared = (() => {
     // 字体与气泡同一套（上首软糖体由两端各自注入 @font-face：客户端 bubble.ts、桌面 renderer.js）
     'font-family:"ShangshouSoftCandy","Yuanti SC","YouYuan","\u5E7C\u5706","Comic Sans MS","PingFang SC","Microsoft YaHei",sans-serif;',
     // 字号对齐 Windows 原生提示（9pt ≈ 12px）：462px 的宠物下 0.026 → 约 12px
-    "font-size:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.026);line-height:1.4;",
+    "font-size:calc(var(--pet77-size,var(--pet-size,462px))*0.026);line-height:1.4;",
     // nowrap + 截断：宽度锁成一行才好和光标一起摆（换行会让宽度随位置跳变）
     "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;",
     // 不设 backdrop-filter：白底没必要，原生提示也没有毛玻璃
-    "box-shadow:0 calc(var(--dsh-pet-size,var(--pet-size,462px))*0.004) calc(var(--dsh-pet-size,var(--pet-size,462px))*0.013) rgba(0,0,0,.18);",
+    "box-shadow:0 calc(var(--pet77-size,var(--pet-size,462px))*0.004) calc(var(--pet77-size,var(--pet-size,462px))*0.013) rgba(0,0,0,.18);",
     // 层级低于气泡（气泡 z-index:3）：两者不再抢同一块地方（提示跟光标、气泡在头顶），保留层序只是兜底
     "opacity:0;transition:opacity .12s ease;pointer-events:none;z-index:2}",
     ".pet-tooltip.is-on{opacity:1}"

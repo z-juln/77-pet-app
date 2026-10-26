@@ -1,7 +1,7 @@
 /**
  * 每种宠物一个目录：config.jsonc、whisper-fallbacks.json、memes/、webm/。
- * 开发时直接读 vendor/pets。安装包只带 zip，启动时解压到用户目录；
- * 外部导入的 zip 也解压到同一处，并盖过同名的内置宠物。
+ * 开发时如果仓库里还有 vendor/pets，优先读那里。
+ * 安装包不再携带宠物。用户从 77-pet-packs 下载到用户目录，导入的 zip 也放在同一处。
  */
 import {
   cpSync,
@@ -226,12 +226,12 @@ export function isBundledPack(appRoot, name) {
 export function removeUserPack(appRoot, userDir, name) {
   const trimmed = String(name || '').trim();
   if (!trimmed || trimmed.includes('..') || trimmed.includes('/') || trimmed.includes('\\')) {
-    throw new Error('种类名称无效');
+    throw new Error('模板名称无效');
   }
   if (isBundledPack(appRoot, trimmed)) throw new Error('内置宠物不能删除');
   const root = userPacksDir(userDir);
   const dest = path.join(root, trimmed);
-  if (!existsSync(dest)) throw new Error('找不到这个宠物种类');
+  if (!existsSync(dest)) throw new Error('找不到这个模板');
   rmSync(dest, { recursive: true, force: true });
   rmSync(path.join(root, trimmed + '.origin'), { force: true });
   rmSync(path.join(root, trimmed + '.zip.stamp'), { force: true });
@@ -239,7 +239,7 @@ export function removeUserPack(appRoot, userDir, name) {
 }
 
 export function importPetZip(buffer, userDir) {
-  const tmp = mkdtempSync(path.join(tmpdir(), 'dsh-pet-import-'));
+  const tmp = mkdtempSync(path.join(tmpdir(), 'pet77-import-'));
   try {
     extractZip(buffer, tmp);
     const { name, root } = inspectPack(tmp);
@@ -262,7 +262,7 @@ export function installBundledPacks(appRoot, userDir) {
     const marker = 'bundle:' + stat.size + ':' + Math.floor(stat.mtimeMs);
     const stampPath = path.join(userPacksDir(userDir), file + '.stamp');
     if (existsSync(stampPath) && readFileSync(stampPath, 'utf8') === marker) continue;
-    const tmp = mkdtempSync(path.join(tmpdir(), 'dsh-pet-bundle-'));
+    const tmp = mkdtempSync(path.join(tmpdir(), 'pet77-bundle-'));
     try {
       extractZip(readFileSync(zipPath), tmp);
       const { name, root } = inspectPack(tmp);

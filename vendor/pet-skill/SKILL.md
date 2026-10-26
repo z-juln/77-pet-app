@@ -1,9 +1,9 @@
 ---
-name: dsh-pet-pack
-description: 为 DSH Pet 桌面应用制作、导入并当场调试一种宠物。用户要做新桌宠、改动画、改表情包，或让桌面上的宠物马上看到改动时使用。
+name: 77-pet-pack
+description: 为 77 Pet 桌面应用制作、导入并当场调试一种宠物。用户要做新桌宠、改动画、改表情包，或让桌面上的宠物马上看到改动时使用。
 ---
 
-# 为 DSH Pet 做一种宠物
+# 为 77 Pet 做一种宠物
 
 帮用户做一种能在桌面上跑起来的宠物，并按「改文件 → 桌面上立刻看到 → 再改」来调试。不要只交一份用户还得自己导入的压缩包。
 
@@ -14,28 +14,42 @@ description: 为 DSH Pet 桌面应用制作、导入并当场调试一种宠物�
 把文件写到：
 
 ```text
-{{PACK_DIR}}/<种类名>/
+{{PACK_DIR}}/<id>/
   config.jsonc
   webm/<动画名>.webm
   memes/<表情名>.png          可选
   whisper-fallbacks.json      可选
 ```
 
-再在目录旁边写标记文件，内容只有 `import` 四个字母：
+`<id>` 用英文，比如 `blue-maid`。再在目录旁边写标记文件，内容只有 `import` 四个字母：
 
 ```text
-{{PACK_DIR}}/<种类名>.origin
+{{PACK_DIR}}/<id>.origin
 ```
 
 这样以后应用更新不会盖掉用户做的宠物。
 
-安装后的应用只读 `~/.dsh-pet-app/pet-packs/<种类名>/`。`{{PACK_DIR}}` 就是这个路径。文件里如果还看得到花括号，说明读的是仓库里的源文件，不要自己猜目录。不要写到代理自己的任务目录，也不要写到仓库里的 `vendor/pet-packs/`。那里只放安装包用的 zip，应用运行时不读。源码运行时，仓库里的 `vendor/pets/<同名>` 优先于用户目录；用户没有要求改源码时，新宠物仍写到上面的用户目录。
+安装后的应用只读 `~/.77-pet-app/pet-packs/<id>/`。`{{PACK_DIR}}` 就是这个路径。目录名是英文 id，比如 `blue-maid`，只用小写字母、数字和连字符。显示名写在 `config.jsonc` 的 `name`，`pack` 等于这个 id。文件里如果还看得到花括号，说明读的是仓库里的源文件，不要自己猜目录。不要写到代理自己的任务目录，也不要写到仓库里的 `vendor/pet-packs/`。官方宠物放在 [77-pet-packs](https://github.com/z-juln/77-pet-packs) 的 `pets/<id>/`，用户在桌宠配置里下载。每种宠物放一张 `preview.png`，云端列表用它做预览。源码里如果还有 `vendor/pets/<同名 id>`，它优先于用户目录；用户没有要求改源码时，新宠物仍写到上面的用户目录。
 
-种类名用用户起的名字。不要含 `/`、`\`。不要占用已经存在的种类，除非用户明确要替换它。内置种类不能删。用户导入或在本机新做的种类，可以在桌宠配置里点「删除种类」，资源目录和使用它的桌宠会一起去掉。
+不要用中文或显示名当目录名。不要占用已经存在的 id，除非用户明确要替换它。用户导入或在本机新做的模板，可以在配置里的「我的模板」点「删除模板」，模板目录和用它创建的实例会一起去掉。
+
+## 参考云端宠物
+
+用户想基于云端已有的桌宠改，或者要参考官方宠物怎么做时，把资源库链接发给用户，让用户自己看文件、在这个基础上做。不要把整包内容下载进对话里复述。
+
+- GitHub（推荐，一般是最新的）：https://github.com/z-juln/77-pet-packs
+- Gitee 镜像：https://gitee.com/juln/77-pet-packs 。Gitee 不一定是最新的，作者可能会忘记同步。
+
+某一种宠物的目录把 `<id>` 换成英文 id，例如 `blue-maid`：
+
+- https://github.com/z-juln/77-pet-packs/tree/master/pets/<id>
+- https://gitee.com/juln/77-pet-packs/tree/master/pets/<id>
+
+在某只云端宠物上改时，用新的英文 id 写到用户目录，旁边的 `.origin` 内容只有 `import`。不要覆盖已经下载到 `pet-packs/<原来的 id>/` 的那一份，除非用户明确要替换它。
 
 ## 先定一只
 
-用户给的角色图、旧动画、品牌名都可以当参考。没有名字时，按角色起一个短名字，当作种类名。
+用户给的角色图、旧动画、品牌名都可以当参考。目录用短的英文 id。显示名可以是中文，写在配置的 `name` 里。
 
 先确定主形象，后面每一段动画都对着它画。脸型、花纹、配色、材质、耳朵、发型、道具都要留着对照。各段之间这些不能变。
 
@@ -125,9 +139,9 @@ ffmpeg -y -c:v libvpx-vp9 -i 输出.webm -vf alphaextract -frames:v 1 透明通�
   "memes": {},
   "pets": [
     {
-      "name": "种类名",
+      "name": "显示名",
       "id": "main",
-      "pack": "种类名",
+      "pack": "english-id",
       "size": 462,
       "balanceEnabled": false,
       "whisperEnabled": true,
@@ -175,15 +189,15 @@ ffmpeg -y -c:v libvpx-vp9 -i 输出.webm -vf alphaextract -frames:v 1 透明通�
 
 宿主地址是 `{{ORIGIN}}`。先请求 `GET {{ORIGIN}}/health`，确认返回里有 `"ok": true`。连不上就从 3080 到 3105 逐个试。
 
-不要读取、不要打印 `~/.dsh-pet-app/settings.json`。那里有用户的 API Key。
+不要读取、不要打印 `~/.77-pet-app/settings.json`。那里有用户的 API Key。
 
 1. 写好目录和 `.origin` 文件。
-2. `GET {{ORIGIN}}/dsh-pet-7340/pet-config`，记下已有的 `pets`。保存时把它们原样带上，不要删掉用户现有的宠物。
-3. 这种宠物还没出现在桌面上时，`PUT {{ORIGIN}}/dsh-pet-7340/pet-config`，请求头 `content-type: application/json`，正文是 `{ "pets": [ ...原来的全部, 新的一只 ] }`。新的一只要有不重复的 `id`、`name`、`pack`（等于种类名）、`size`（120–1200）、`position.corner`（`top-left`、`top-right`、`bottom-left`、`bottom-right` 之一）、`position.marginX`、`position.marginY`。保存成功后窗口会自己重开。
-4. 只改了素材或 `config.jsonc` 时，`POST {{ORIGIN}}/dsh-pet-7340/reload`。同名 webm 换了内容也要 reload，否则窗口可能还播着旧的。
-5. 看某一段：`POST {{ORIGIN}}/dsh-pet-7340/anim?pet=<实例id>`，正文 `{"name":"<动画名>"}`。`pet` 用宠物列表里的实例 `id`，不是种类名。
+2. `GET {{ORIGIN}}/77-pet/pet-config`，记下已有的 `pets`。保存时把它们原样带上，不要删掉用户现有的宠物。
+3. 这种宠物还没出现在桌面上时，`PUT {{ORIGIN}}/77-pet/pet-config`，请求头 `content-type: application/json`，正文是 `{ "pets": [ ...原来的全部, 新的一只 ] }`。新的一只要有不重复的实例 `id`、显示名 `name`、`pack`（等于英文目录 id）、`size`（120–1200）、`position.corner`（`top-left`、`top-right`、`bottom-left`、`bottom-right` 之一）、`position.marginX`、`position.marginY`。保存成功后窗口会自己重开。
+4. 只改了素材或 `config.jsonc` 时，`POST {{ORIGIN}}/77-pet/reload`。同名 webm 换了内容也要 reload，否则窗口可能还播着旧的。
+5. 看某一段：`POST {{ORIGIN}}/77-pet/anim?pet=<实例id>`，正文 `{"name":"<动画名>"}`。`pet` 用宠物列表里的实例 `id`，不是目录 id。
 
-声称已经挂上之前，先确认 `~/.dsh-pet-app/pet-packs/<种类名>/config.jsonc` 存在，并且 `GET {{ORIGIN}}/dsh-pet-7340/pet-config` 返回的种类列表里有它。没有的话，桌面上不会出现这只宠物。不要告诉用户去检查窗口是否被挡住。
+声称已经挂上之前，先确认 `~/.77-pet-app/pet-packs/<id>/config.jsonc` 存在，并且 `GET {{ORIGIN}}/77-pet/pet-config` 返回的 `packs` 里有这个模板。没有的话，桌面上不会出现这只宠物。不要告诉用户去检查窗口是否被挡住。
 
 然后看用户桌面上的那只宠物。问清楚哪里不对（透明、脚的位置、点不中、循环接不上、朝向反了），改文件，再 reload，再点播同一段。
 
@@ -196,4 +210,4 @@ ffmpeg -y -c:v libvpx-vp9 -i 输出.webm -vf alphaextract -frames:v 1 透明通�
 - 动画名写进了 `memes` 或 `whisper-fallbacks.json`。
 - `categories` 用了 `name`、`animations`，而不是 `id`、`weight`、`actions`。
 
-交给别人时才打 zip。zip 根目录就是 `config.jsonc`，也可以只包一层文件夹。用户在「桌宠配置 → 添加宠物 → 导入宠物包」里选择它。调试过程中不要反复打包。
+交给别人时才打 zip。zip 根目录就是 `config.jsonc`，也可以只包一层文件夹。用户在「选择模板 → 我的模板 → 导入模板」里选择它。调试过程中不要反复打包。

@@ -30,6 +30,11 @@ test('用户宠物配置会合并进运行时 config', () => {
   assert.equal(merged.pets[0].position.corner, 'top-left');
 });
 
+test('隐藏默认关闭，显式打开才隐藏', () => {
+  assert.equal(normalizeUserPet({ id: 'main', name: 'a', size: 200 }).hidden, false);
+  assert.equal(normalizeUserPet({ id: 'main', name: 'a', size: 200, hidden: true }).hidden, true);
+});
+
 test('碎碎念默认调用模型，显式关闭才不调用', () => {
   assert.equal(normalizeUserPet({ id: 'main', name: 'a', size: 200 }).whisperUseModel, true);
   assert.equal(normalizeUserPet({ id: 'main', name: 'a', size: 200, whisperUseModel: false }).whisperUseModel, false);

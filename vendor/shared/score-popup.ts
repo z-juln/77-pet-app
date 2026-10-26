@@ -11,17 +11,17 @@ export const SCORE_POPUP_DURATION_MS = 2200;
 /** 弹窗样式 —— 两端注入同一份（与 MENU_CSS / CHAT_CSS 同理） */
 export const SCORE_POPUP_CSS = [
   // 积分卡片：金色主值 + 灰色明细，居中，弹出动画
-  '.dsh-pet-score{position:fixed;z-index:2147483002;min-width:120px;text-align:center;',
+  '.pet77-score{position:fixed;z-index:2147483002;min-width:120px;text-align:center;',
   'background:rgba(255,255,255,.97);border:1px solid rgba(255,179,0,.35);border-radius:12px;',
   'box-shadow:0 10px 32px rgba(0,0,0,.22);padding:8px 16px 9px;user-select:none;pointer-events:auto;',
   "font-family:'ShangshouSoftCandy','Yuanti SC','YouYuan','幼圆','Comic Sans MS','PingFang SC','Microsoft YaHei',sans-serif;}",
-  '.dsh-pet-score.is-in{animation:dshPetScorePop .28s ease}',
-  '.dsh-pet-score-val{font-size:22px;line-height:1.25;font-weight:700;color:#ff8f00;font-variant-numeric:tabular-nums}',
-  '.dsh-pet-score-sub{font-size:11px;line-height:1.4;color:rgba(43,43,43,.6);margin-top:2px;white-space:nowrap}',
+  '.pet77-score.is-in{animation:pet77ScorePop .28s ease}',
+  '.pet77-score-val{font-size:22px;line-height:1.25;font-weight:700;color:#ff8f00;font-variant-numeric:tabular-nums}',
+  '.pet77-score-sub{font-size:11px;line-height:1.4;color:rgba(43,43,43,.6);margin-top:2px;white-space:nowrap}',
   // 粒子层：整屏固定、不挡交互；粒子为绝对定位小圆点，位移/透明度由 rAF 直接写
-  '.dsh-pet-score-burst{position:fixed;inset:0;pointer-events:none;z-index:2147483002}',
-  '.dsh-pet-score-particle{position:absolute;border-radius:50%;pointer-events:none}',
-  '@keyframes dshPetScorePop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}',
+  '.pet77-score-burst{position:fixed;inset:0;pointer-events:none;z-index:2147483002}',
+  '.pet77-score-particle{position:absolute;border-radius:50%;pointer-events:none}',
+  '@keyframes pet77ScorePop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}',
 ].join('');
 
 /** 粒子只注入一次（同 CHAT_CSS 的 injectChatCss 模式） */
@@ -30,8 +30,8 @@ function injectScoreCss(): void {
   if (scoreCssInjected || typeof document === 'undefined') return;
   scoreCssInjected = true;
   const tag = document.createElement('style');
-  tag.dataset.plugin = 'dsh-pet';
-  tag.dataset.pluginCss = 'dsh-pet/score';
+  tag.dataset.plugin = '77-pet';
+  tag.dataset.pluginCss = '77-pet/score';
   tag.textContent = SCORE_POPUP_CSS;
   document.head.appendChild(tag);
 }
@@ -61,7 +61,7 @@ export function spawnScoreBurst(x: number, y: number): void {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   injectScoreCss();
   const root = document.createElement('div');
-  root.className = 'dsh-pet-score-burst';
+  root.className = 'pet77-score-burst';
   document.body.appendChild(root);
   interface P {
     el: HTMLDivElement;
@@ -76,7 +76,7 @@ export function spawnScoreBurst(x: number, y: number): void {
     const speed = BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN);
     const r = BURST_RADIUS_MIN + Math.random() * (BURST_RADIUS_MAX - BURST_RADIUS_MIN);
     const el = document.createElement('div');
-    el.className = 'dsh-pet-score-particle';
+    el.className = 'pet77-score-particle';
     el.style.left = x + 'px';
     el.style.top = y + 'px';
     el.style.width = r * 2 + 'px';
@@ -138,13 +138,13 @@ export function mountScorePopup(opts: {
   const x = opts.x;
   const y = opts.y;
   const root = document.createElement('div');
-  root.className = 'dsh-pet-score';
+  root.className = 'pet77-score';
 
   const val = document.createElement('div');
-  val.className = 'dsh-pet-score-val';
+  val.className = 'pet77-score-val';
   val.textContent = '+' + opts.score;
   const sub = document.createElement('div');
-  sub.className = 'dsh-pet-score-sub';
+  sub.className = 'pet77-score-sub';
   sub.textContent = '速度 ' + Math.round(opts.speed) + ' · 大小 ' + Math.round(opts.size);
   root.appendChild(val);
   root.appendChild(sub);

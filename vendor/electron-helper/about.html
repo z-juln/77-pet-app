@@ -74,29 +74,24 @@
     </style>
   </head>
   <body>
-    <h1>关于 DSH Pet</h1>
-    <p>
-      动画、表情包和交互资源来自
-      <a href="https://github.com/PC2005-cloud/dsh-pet" target="_blank" rel="noopener noreferrer"
-        >github.com/PC2005-cloud/dsh-pet</a
-      >。
-    </p>
+    <h1>关于 77 Pet</h1>
+    <p>动画和表情包素材禁止商用。</p>
     <p>
       本应用由
       <a href="https://github.com/z-juln" target="_blank" rel="noopener noreferrer">juln</a>
-      基于该项目二次开发。
+      开发。
     </p>
     <p>
       项目地址：
-      <a href="https://github.com/z-juln/dsh-pet-app" target="_blank" rel="noopener noreferrer"
-        >github.com/z-juln/dsh-pet-app</a
+      <a href="https://github.com/z-juln/77-pet-app" target="_blank" rel="noopener noreferrer"
+        >github.com/z-juln/77-pet-app</a
       >
     </p>
     <p class="version">
       当前版本 <span id="current">…</span>
       <a
         class="changelog"
-        href="https://github.com/z-juln/dsh-pet-app/blob/master/CHANGELOG.md"
+        href="https://github.com/z-juln/77-pet-app/blob/master/CHANGELOG.md"
         target="_blank"
         rel="noopener noreferrer"
         >查看更新日志</a
@@ -137,7 +132,7 @@
       }
 
       async function readStatus() {
-        const response = await fetch(origin + '/dsh-pet-7340/app-update');
+        const response = await fetch(origin + '/77-pet/app-update');
         return response.json();
       }
 
@@ -145,7 +140,7 @@
         const data = await readStatus();
         render(data);
         if (data.hasUpdate && data.latest && seenVersion !== data.latest) {
-          const seen = await fetch(origin + '/dsh-pet-7340/app-update/seen', { method: 'POST' });
+          const seen = await fetch(origin + '/77-pet/app-update/seen', { method: 'POST' });
           seenVersion = data.latest;
           render(await seen.json());
         }
@@ -155,11 +150,11 @@
         check.disabled = true;
         status.textContent = '正在检查…';
         try {
-          const response = await fetch(origin + '/dsh-pet-7340/app-update/check', { method: 'POST' });
+          const response = await fetch(origin + '/77-pet/app-update/check', { method: 'POST' });
           const data = await response.json();
           render(data);
           if (data.hasUpdate && data.latest && seenVersion !== data.latest) {
-            const seen = await fetch(origin + '/dsh-pet-7340/app-update/seen', { method: 'POST' });
+            const seen = await fetch(origin + '/77-pet/app-update/seen', { method: 'POST' });
             seenVersion = data.latest;
             render(await seen.json());
           }
@@ -181,7 +176,7 @@
           }
         }, 700);
         try {
-          const response = await fetch(origin + '/dsh-pet-7340/app-update/install', { method: 'POST' });
+          const response = await fetch(origin + '/77-pet/app-update/install', { method: 'POST' });
           render(await response.json());
         } catch {
           status.textContent = '正在重启…';
@@ -193,7 +188,7 @@
       autoOff.addEventListener('change', async () => {
         const enabled = !autoOff.checked;
         try {
-          const response = await fetch(origin + '/dsh-pet-7340/app-update/auto-check', {
+          const response = await fetch(origin + '/77-pet/app-update/auto-check', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ enabled }),

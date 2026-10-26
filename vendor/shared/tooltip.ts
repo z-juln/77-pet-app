@@ -12,11 +12,11 @@
 //   桌面   = Electron 窗口（光标坐标由 onMouseMove 换算，另见 sprite.js 的注释）。
 // 这样宠物自己走动/被抛出时窗口位移不会带着提示漂：坐标里没有容器位移这一项。
 //
-// 尺寸一律取宠物宽度变量：浏览器是 --dsh-pet-size、桌面是 --pet-size（两端既有差异），
+// 尺寸一律取宠物宽度变量：浏览器是 --pet77-size、桌面是 --pet-size（两端既有差异），
 // 用 CSS 变量回退同时兼容两者，调用方无需传尺寸（与 MEME_BUBBLE_CSS 同一手法）。
 //
-// 为什么不用 DSH 主题变量：settings.ts 的问号提示用 var(--dsw-alias-tooltip-bg)，那个变量只
-// 存在于 DSH 页面，桌面 Electron 页里没有（会退化成透明底），所以这里自成一套浅色胶囊。
+// 为什么不用  主题变量：settings.ts 的问号提示用 var(--dsw-alias-tooltip-bg)，那个变量只
+// 存在于  页面，桌面 Electron 页里没有（会退化成透明底），所以这里自成一套浅色胶囊。
 
 /** 提示框 class（两端共用） */
 export const TOOLTIP_CLASS = 'pet-tooltip';
@@ -69,9 +69,9 @@ export const TOOLTIP_CSS = [
   '.pet-tooltip{',
   // fixed + 坐标由 JS 按光标写（见 tooltipPlacement）：left/top 只是未定位前的兜底，不会显示出来
   'position:fixed;left:0;top:0;',
-  'max-width:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.8);',
-  'padding:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.010) calc(var(--dsh-pet-size,var(--pet-size,462px))*0.021);',
-  'border-radius:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.016);',
+  'max-width:calc(var(--pet77-size,var(--pet-size,462px))*0.8);',
+  'padding:calc(var(--pet77-size,var(--pet-size,462px))*0.010) calc(var(--pet77-size,var(--pet-size,462px))*0.021);',
+  'border-radius:calc(var(--pet77-size,var(--pet-size,462px))*0.016);',
   // 白底黑字（对齐原生提示的观感；文字色与气泡一致）——深色胶囊落在浅色宠物身上太抢眼
   'background:rgba(255,255,255,.96);color:#1f1f1f;',
   // 细边框：白底压到浅色宠物或浅色页面上会糊成一片，靠它划出轮廓（原生提示也有一道边）
@@ -79,11 +79,11 @@ export const TOOLTIP_CSS = [
   // 字体与气泡同一套（上首软糖体由两端各自注入 @font-face：客户端 bubble.ts、桌面 renderer.js）
   'font-family:"ShangshouSoftCandy","Yuanti SC","YouYuan","幼圆","Comic Sans MS","PingFang SC","Microsoft YaHei",sans-serif;',
   // 字号对齐 Windows 原生提示（9pt ≈ 12px）：462px 的宠物下 0.026 → 约 12px
-  'font-size:calc(var(--dsh-pet-size,var(--pet-size,462px))*0.026);line-height:1.4;',
+  'font-size:calc(var(--pet77-size,var(--pet-size,462px))*0.026);line-height:1.4;',
   // nowrap + 截断：宽度锁成一行才好和光标一起摆（换行会让宽度随位置跳变）
   'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
   // 不设 backdrop-filter：白底没必要，原生提示也没有毛玻璃
-  'box-shadow:0 calc(var(--dsh-pet-size,var(--pet-size,462px))*0.004) calc(var(--dsh-pet-size,var(--pet-size,462px))*0.013) rgba(0,0,0,.18);',
+  'box-shadow:0 calc(var(--pet77-size,var(--pet-size,462px))*0.004) calc(var(--pet77-size,var(--pet-size,462px))*0.013) rgba(0,0,0,.18);',
   // 层级低于气泡（气泡 z-index:3）：两者不再抢同一块地方（提示跟光标、气泡在头顶），保留层序只是兜底
   'opacity:0;transition:opacity .12s ease;pointer-events:none;z-index:2}',
   '.pet-tooltip.is-on{opacity:1}',

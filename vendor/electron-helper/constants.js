@@ -1,5 +1,5 @@
 /**
- * dsh-pet desktop helper —— 基础设施（常量 + 全局状态 + 调试钩子）。
+ * 77-pet desktop helper —— 基础设施（常量 + 全局状态 + 调试钩子）。
  *
  * 经典 script 全局共享（经 index.html 顺序加载，先于 sprite.js / events.js / renderer.js）；
  * 顶层 const/let/function 都进全局词法环境，后续文件可直接引用。
@@ -10,7 +10,7 @@ const S = window.PetShared;
 
 const params = new URLSearchParams(location.search);
 const CONFIG = {
-  configUrl: params.get('configUrl') || 'http://127.0.0.1:3080/dsh-pet-7340/config',
+  configUrl: params.get('configUrl') || 'http://127.0.0.1:3080/77-pet/config',
   scale: Number(params.get('scale') || '1'),
   petIndex: Number(params.get('petIndex') || '0'),
   topInsetRatio: Number(params.get('topInsetRatio') || '0'),
@@ -28,11 +28,11 @@ function toScreen(v) {
 function toLocal(v) {
   return v / CONFIG.scale;
 }
-// bridge 模式（DSH_PET_BRIDGE=1）：请求走自定义 scheme，经 Electron 主进程转宿主管道——
-// 绕开 DSH Desktop 2.0.3+ 的浏览器访问闸门（只放行带令牌的请求，插件自拉进程的裸 HTTP 全 403）
+// bridge 模式（PET77_BRIDGE=1）：请求走自定义 scheme，经 Electron 主进程转宿主管道——
+// 绕开浏览器访问闸门（只放行带令牌的请求，插件自拉进程的裸 HTTP 全 403）
 const BRIDGE = params.get('bridge') === '1';
 // 工具项「打开网站」的去向（主进程按宿主形态经 query 注入，见 main.js 的 OPEN_TARGET）：
-// desktop = 宿主是 DSH 桌面应用，菜单项改叫「打开 DeepSeek Harness」并唤起桌面应用主窗口；site = 打开站点。
+// desktop 时菜单项叫「打开 DeepSeek Harness」；site 时打开站点。
 const OPEN_TARGET = params.get('openTarget') === 'desktop' ? 'desktop' : 'site';
 // 视口 = 全部显示器工作区的外接矩形（多显示器时即整个桌面；窗口只是宠物的一块局部画布）。
 // 它只是**坐标系原点与比例换算基准**：位置比例（customPos）、漫游 ratio 都按它算。
@@ -140,8 +140,8 @@ applyDeskGeometry({
   topInsetRatio: CONFIG.topInsetRatio,
 });
 const ORIGIN = new URL(CONFIG.configUrl).origin;
-/** 宿主 /dsh-pet-7340 前缀：bridge 走自定义 scheme（主进程转发），否则 HTTP 直连宿主 */
-const BASE = BRIDGE ? 'dsh-pet-bridge://dsh-pet/dsh-pet-7340' : ORIGIN + '/dsh-pet-7340';
+/** 宿主 /77-pet 前缀：bridge 走自定义 scheme（主进程转发），否则 HTTP 直连宿主 */
+const BASE = BRIDGE ? 'pet77-bridge://77-pet/77-pet' : ORIGIN + '/77-pet';
 const STATE_URL = BASE + '/state'; // 轮询统一状态 S：前端 1s 轮询的唯一数据源（余额/工作状态/通知/说话）
 const BALANCE_URL = BASE + '/balance'; // 余额刷新动作（POST，写 S；数据本身从 /state 读）
 const WHISPER_URL = BASE + '/whisper';
@@ -163,7 +163,7 @@ let bootTimer = null;
 let loopsStarted = false;
 
 // ---------- 调试钩子（冒烟自检/排障用；真实运行也可排查错误/配置/气泡） ----------
-window.__dshPetDebug = {
+window.__pet77Debug = {
   errors: [],
   configOk: false,
   spriteCount: 0,
@@ -174,5 +174,5 @@ window.__dshPetDebug = {
   bootAt: Date.now(),
 };
 window.addEventListener('error', (event) => {
-  window.__dshPetDebug.errors.push(String(event.message || event.error));
+  window.__pet77Debug.errors.push(String(event.message || event.error));
 });

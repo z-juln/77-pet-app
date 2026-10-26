@@ -1,5 +1,5 @@
 /**
- * dsh-pet desktop helper —— 「宿主没了就自己退」的纯判定（issue #56）。
+ * 77-pet desktop helper —— 「宿主没了就自己退」的纯判定（issue #56）。
  *
  * 背景：helper 的 stdout/stderr 是宿主给的管道（helper-process.ts: stdio ['pipe','pipe','pipe']）。
  * 宿主进程一退出，这两根管道的读端随之关闭，而 helper 下一次写（bridge 协议行 —— 渲染端每秒至少
@@ -21,7 +21,7 @@
 const HOST_POLL_MS = 2000;
 
 /**
- * 解析宿主 PID（DSH_PET_HOST_PID，宿主 spawn 时注入）。
+ * 解析宿主 PID（PET77_HOST_PID，宿主 spawn 时注入）。
  * 非法/未设 → 0：调用方据此**不做探测**。宁可留着一个桌宠等人来关，也绝不因为一个读不懂的
  * 环境变量把用户正开着的桌宠退掉。
  */

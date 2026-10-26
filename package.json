@@ -1,9 +1,9 @@
 {
-  "name": "dsh-pet-app",
-  "version": "0.0.4",
+  "name": "77-pet-app",
+  "version": "0.0.5",
   "private": true,
-  "description": "独立桌宠（macOS / Windows）。动画与交互来自 https://github.com/PC2005-cloud/dsh-pet ，素材禁止商用。",
-  "author": "dsh-pet-app",
+  "description": "独立桌宠（macOS / Windows）。素材禁止商用。",
+  "author": "77-pet-app",
   "main": "src/app-main.cjs",
   "scripts": {
     "build:core": "esbuild vendor/shared/index.ts --bundle --format=iife --global-name=PetShared --outfile=vendor/electron-helper/shared-core.js --platform=browser",
@@ -11,14 +11,14 @@
     "start": "electron src/app-main.cjs",
     "test": "node --test src/*.test.mjs",
     "pack:pets": "node src/pack-pets.mjs",
-    "predist": "npm run pack:pets && npm run build:core",
+    "predist": "npm run build:core",
     "dist": "electron-builder --mac dmg zip --arm64 --win nsis --x64",
     "dist:mac": "electron-builder --mac dmg zip --arm64",
     "dist:win": "electron-builder --win nsis --x64"
   },
   "build": {
-    "appId": "app.dshpet.desktop",
-    "productName": "DSH Pet",
+    "appId": "app.77pet.desktop",
+    "productName": "77 Pet",
     "icon": "build/icon.png",
     "npmRebuild": false,
     "directories": {
@@ -55,7 +55,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "DSH Pet",
+      "shortcutName": "77 Pet",
       "unicode": true,
       "artifactName": "${productName} Setup ${version}.${ext}"
     }

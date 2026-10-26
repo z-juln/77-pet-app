@@ -5,7 +5,7 @@ import { createWriteStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
-export const UPDATE_REPO = 'z-juln/dsh-pet-app';
+export const UPDATE_REPO = 'z-juln/77-pet-app';
 export const RELEASES_LATEST_URL = `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
 
 export function compareVersions(left, right) {
@@ -72,7 +72,7 @@ async function fetchFromApi(fetchImpl) {
   const response = await fetchImpl(RELEASES_LATEST_URL, {
     headers: {
       accept: 'application/vnd.github+json',
-      'user-agent': 'dsh-pet-app',
+      'user-agent': '77-pet-app',
     },
     signal: AbortSignal.timeout(15_000),
   });
@@ -91,7 +91,7 @@ async function fetchFromApi(fetchImpl) {
 
 async function fetchFromWeb(fetchImpl) {
   const latest = await fetchImpl(WEB_LATEST_URL, {
-    headers: { 'user-agent': 'dsh-pet-app' },
+    headers: { 'user-agent': '77-pet-app' },
     redirect: 'manual',
     signal: AbortSignal.timeout(15_000),
   });
@@ -101,7 +101,7 @@ async function fetchFromWeb(fetchImpl) {
   if (!tagMatch) throw new Error('检查更新失败（' + latest.status + '）');
   const version = versionFromTag(tagMatch[1]);
   const page = await fetchImpl(`https://github.com/${UPDATE_REPO}/releases/expanded_assets/${tagMatch[1]}`, {
-    headers: { 'user-agent': 'dsh-pet-app', 'x-requested-with': 'XMLHttpRequest' },
+    headers: { 'user-agent': '77-pet-app', 'x-requested-with': 'XMLHttpRequest' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!page.ok) throw new Error('检查更新失败（' + page.status + '）');
@@ -128,7 +128,7 @@ export async function fetchLatestRelease(fetchImpl = fetch) {
 
 export async function downloadToFile(url, dest, { fetchImpl = fetch, onProgress } = {}) {
   const response = await fetchImpl(url, {
-    headers: { 'user-agent': 'dsh-pet-app', accept: 'application/octet-stream' },
+    headers: { 'user-agent': '77-pet-app', accept: 'application/octet-stream' },
     redirect: 'follow',
     signal: AbortSignal.timeout(10 * 60 * 1000),
   });

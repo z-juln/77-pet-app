@@ -7,7 +7,7 @@
 // 菜单数据单一事实来源 = 合并后的 animations 配置（用户覆盖层自动生效）。
 //
 // 菜单层级（与产品定义一致）：
-//   一级 = 工具项 + 动作：打开网站（宿主是 DSH 桌面应用时，同一项的文案与去向变成「打开 DeepSeek Harness」——见 runtime/electron-helper/main.js 的 OPEN_TARGET）/ 查看余额 / 重载配置（桌面端专属）与 回到初始位置（两端共用），由各壳注入；
+//   一级 = 工具项 + 动作：打开网站（宿主是  桌面应用时，同一项的文案与去向变成「打开 DeepSeek Harness」——见 runtime/electron-helper/main.js 的 OPEN_TARGET）/ 查看余额 / 重载配置（桌面端专属）与 回到初始位置（两端共用），由各壳注入；
 //   二级（动作的子级）= 分类：待机 / 转向 / 拖拽 / 点击回应 / 移动 / config 随机动作分类 / 事件档位
 //   三级 = 具体动画名
 //
@@ -121,31 +121,31 @@ export function isNoMirrorAnimation(categories: Category[], anim: string): boole
 }
 
 /** 菜单样式 —— 两端注入同一份（浏览器并入 plugin css；桌面入窗口 head）。
- *  每一级面板是独立的绝对定位盒子（.dsh-pet-menu-column），位置由 JS 内联写入；
+ *  每一级面板是独立的绝对定位盒子（.pet77-menu-column），位置由 JS 内联写入；
  *  面板与面板之间互不嵌套，各自独立滚动。 */
 export const MENU_CSS = [
-  '.dsh-pet-menu{position:fixed;left:0;top:0;z-index:2147483000;color:#2b2b2b;font-size:13px;line-height:1.5;',
+  '.pet77-menu{position:fixed;left:0;top:0;z-index:2147483000;color:#2b2b2b;font-size:13px;line-height:1.5;',
   "font-family:'Microsoft YaHei UI','Segoe UI','PingFang SC',sans-serif;user-select:none;pointer-events:auto}",
-  '.dsh-pet-menu,.dsh-pet-menu *{box-sizing:border-box}',
-  '.dsh-pet-menu-column{position:absolute;min-width:150px;max-width:240px;padding:4px;',
+  '.pet77-menu,.pet77-menu *{box-sizing:border-box}',
+  '.pet77-menu-column{position:absolute;min-width:150px;max-width:240px;padding:4px;',
   'background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.12);border-radius:8px;',
   'box-shadow:0 8px 28px rgba(0,0,0,.2);max-height:min(62vh,460px);overflow-y:auto;',
   // 自定义滚动条：细圆角半透明条（Chromium 系 Chrome/Edge/Electron 走 ::-webkit-scrollbar；
   // Firefox 走 scrollbar-width/scrollbar-color）。thumb 用 border+background-clip 内缩 2px 留白，
   // 与菜单的圆角白底协调；hover 加深并与 item:hover 的蓝呼应。track 透明不抢视觉。
   'scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent}',
-  '.dsh-pet-menu-column::-webkit-scrollbar{width:8px;height:8px}',
-  '.dsh-pet-menu-column::-webkit-scrollbar-track{background:transparent}',
-  '.dsh-pet-menu-column::-webkit-scrollbar-thumb{background:rgba(0,0,0,.16);border-radius:4px;',
+  '.pet77-menu-column::-webkit-scrollbar{width:8px;height:8px}',
+  '.pet77-menu-column::-webkit-scrollbar-track{background:transparent}',
+  '.pet77-menu-column::-webkit-scrollbar-thumb{background:rgba(0,0,0,.16);border-radius:4px;',
   'border:2px solid transparent;background-clip:content-box}',
-  '.dsh-pet-menu-column::-webkit-scrollbar-thumb:hover{background:rgba(43,99,255,.4);',
+  '.pet77-menu-column::-webkit-scrollbar-thumb:hover{background:rgba(43,99,255,.4);',
   'border:2px solid transparent;background-clip:content-box}',
-  '.dsh-pet-menu-column::-webkit-scrollbar-corner{background:transparent}',
-  '.dsh-pet-menu-item{position:relative;display:flex;align-items:center;justify-content:space-between;',
+  '.pet77-menu-column::-webkit-scrollbar-corner{background:transparent}',
+  '.pet77-menu-item{position:relative;display:flex;align-items:center;justify-content:space-between;',
   'gap:14px;padding:5px 12px;border-radius:6px;white-space:nowrap;cursor:default}',
-  '.dsh-pet-menu-item:hover{background:rgba(43,99,255,.14)}',
-  '.dsh-pet-menu-item>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}',
-  '.dsh-pet-menu-arrow{color:#9aa0a6;font-size:12px;flex:none}',
+  '.pet77-menu-item:hover{background:rgba(43,99,255,.14)}',
+  '.pet77-menu-item>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}',
+  '.pet77-menu-arrow{color:#9aa0a6;font-size:12px;flex:none}',
 ].join('');
 
 /** mountContextMenu 返回值 */
@@ -191,7 +191,7 @@ export function mountContextMenu(opts: {
       ? clamp
       : { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
   const root = document.createElement('div');
-  root.className = 'dsh-pet-menu';
+  root.className = 'pet77-menu';
   root.style.left = '0px';
   root.style.top = '0px';
   root.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -232,20 +232,20 @@ export function mountContextMenu(opts: {
    *  面板自身先入 DOM、子面板随后入 → 层级越深绘制越靠上（子菜单盖在父菜单上层）。 */
   const buildPanel = (nodes: MenuNode[]): HTMLElement => {
     const panel = document.createElement('div');
-    panel.className = 'dsh-pet-menu-column';
+    panel.className = 'pet77-menu-column';
     panel.style.display = 'none';
     // 桌面 clamp：把列高封顶到可视矩形内（否则 62vh 相对的是窗口高度，可视区更小时仍会溢出被裁）
     if (clamp) panel.style.maxHeight = Math.min(460, Math.max(120, c.h - 16)) + 'px';
     root.appendChild(panel);
     for (const node of nodes) {
       const item = document.createElement('div');
-      item.className = 'dsh-pet-menu-item';
+      item.className = 'pet77-menu-item';
       if (isBranchNode(node)) {
-        item.classList.add('dsh-pet-menu-branch');
+        item.classList.add('pet77-menu-branch');
         const label = document.createElement('span');
         label.textContent = node.label;
         const arrow = document.createElement('span');
-        arrow.className = 'dsh-pet-menu-arrow';
+        arrow.className = 'pet77-menu-arrow';
         arrow.textContent = '▸';
         item.appendChild(label);
         item.appendChild(arrow);

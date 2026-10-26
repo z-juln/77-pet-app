@@ -97,7 +97,7 @@ export interface Pet {
    *  缺失默认 true（内置默认开启：碎碎念每次生成会调用当前对话的模型，本地 LLM 单并发时
    *  会顶掉正在跑的任务的 KV cache，见 config.jsonc 注释——不需要的宠物请显式写 false） */
   whisperEnabled: boolean;
-  /** 是否启用工作状态联动：true=监听 DSH 会话事件（tool/call 等），按 animations.events.workStatus
+  /** 是否启用工作状态联动：true=监听  会话事件（tool/call 等），按 animations.events.workStatus
    *  数组切档位动画 + 气泡；false=禁用。缺失默认 true（内置默认开启）。监听不调用模型，无 KV cache 风险 */
   workStatusEnabled: boolean;
   /** 宠物固定：true = 随机动画链不再抽「转向(turn) / 移动(move)」两档——宠物不自己翻朝向、
@@ -134,7 +134,7 @@ export interface Pet {
 /** 一处「服务商 + 模型」选择（config.jsonc 的 whisperModel / chatModel 段）。
  *  provider 与 model **要么都为空（= 跟随当前对话的模型）要么都非空**——只填一半是配置错误。 */
 export interface ModelSelection {
-  /** 服务商路由 id（与 DSH 模型选择器同一命名空间） */
+  /** 服务商路由 id（与  模型选择器同一命名空间） */
   provider: string;
   /** 该服务商下的模型 id */
   model: string;

@@ -1,5 +1,5 @@
 /**
- * dsh-pet desktop helper —— Electron 主进程
+ * 77-pet desktop helper —— Electron 主进程
  *
  * 职责：为**每只桌面宠物**开一个独立的局部小窗口（透明、置顶、不可激活），
  * 窗口 = 宠物包围盒 + 四周外扩余量（renderer 的 WINDOW_MARGIN_RATIO，为气泡/弹窗预留空间），
@@ -15,14 +15,14 @@
  * 同时发生的事，混成了一个自变量。）
  * 输入：窗口默认**整窗点击穿透**（setIgnoreMouseEvents(true,{forward:true})），渲染端在光标
  * 进/出宠物身体命中区时经 pet:set-interactive 翻转可交互——透明像素不挡下层应用，
- * 与浏览器 overlay（仅 .dsh-pet-hit 可交互）严格对齐。
+ * 与浏览器 overlay（仅 .pet77-hit 可交互）严格对齐。
  *
- * 数据通道（bridge 模式，DSH_PET_BRIDGE=1 由宿主注入）：
- * 渲染端不再直连宿主 WebServer（DSH Desktop 2.0.3+ 的浏览器访问闸门会拦无令牌裸 HTTP）——
- * 本进程注册自定义 scheme `dsh-pet-bridge://`，protocol.handle 收到渲染端请求后
+ * 数据通道（bridge 模式，PET77_BRIDGE=1 由宿主注入）：
+ * 渲染端不再直连宿主 WebServer（ Desktop 2.0.3+ 的浏览器访问闸门会拦无令牌裸 HTTP）——
+ * 本进程注册自定义 scheme `pet77-bridge://`，protocol.handle 收到渲染端请求后
  * 经 stdin/stdout JSON 行协议转发宿主（helper-process.ts 的 BridgeHandler），
  * 宿主用与 HTTP 路由同一份 handlePetRoute 应答；素材应答带文件绝对路径，本进程读盘返回。
- * 无 DSH_PET_BRIDGE（手动 start-desktop / 开发流）时保持旧路径：渲染端直接 HTTP 访问宿主。
+ * 无 PET77_BRIDGE（手动 start-desktop / 开发流）时保持旧路径：渲染端直接 HTTP 访问宿主。
  *
  * 进程存亡（issue #56）：本进程的 stdout/stderr 是宿主给的管道，宿主一退出读端就消失（下一次写
  * 就是 EPIPE，而 Electron 默认处理器只会弹框且不退出）。故有「宿主存活」一节：管道守卫 +
@@ -36,7 +36,7 @@ try {
   electronApi = require('electron');
 } catch (error) {
   process.stderr.write(
-    '[dsh-pet helper] 启动失败：本进程被以「纯 Node 模式」拉起（ELECTRON_RUN_AS_NODE=' +
+    '[77-pet helper] 启动失败：本进程被以「纯 Node 模式」拉起（ELECTRON_RUN_AS_NODE=' +
       JSON.stringify(process.env.ELECTRON_RUN_AS_NODE ?? null) +
       '）。该变量必须在 spawn 前删除（见 src/host/helper-process.ts 的 helperSpawnEnv），' +
       '运行期再删无效，设成空串会让 Electron 直接 abort。原始错误：' +
@@ -66,12 +66,12 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // 显式定名：Helper 是被 `electron.exe <main.js>` 直接拉起的，Electron 取不到 app 名会回落成
 // "Electron"，userData 便落到 %APPDATA%\Electron —— 那是所有这么跑的 Electron 脚本的公共目录，
 // 我们的 DPI 缓存与 Chromium profile 都会和别人混在一起。必须赶在任何 getPath('userData') 之前设。
-app.setName('DSH Pet');
+app.setName('77 Pet');
 
 /** DPI 探测子进程模式：不建窗口，只把主屏 scaleFactor 打到 stdout 就退出（见 probePrimaryScale） */
-const DPI_PROBE = process.env.DSH_PET_DPI_PROBE === '1';
+const DPI_PROBE = process.env.PET77_DPI_PROBE === '1';
 /** 探测进程的输出标记（父进程按它抓值） */
-const DPI_MARK = 'dsh-pet-primary-scale:';
+const DPI_MARK = 'pet77-primary-scale:';
 
 // ---------- 宿主存活（issue #56）：管道断开 / 父进程消失 → 自己退出 ----------
 //
@@ -104,9 +104,9 @@ for (const stream of [process.stdout, process.stderr]) {
   });
 }
 
-// ② 宿主探测：DSH_PET_HOST_PID 由宿主 spawn 时注入；未注入/非法 → parseHostPid 给 0 → 不探测（不误退）。
+// ② 宿主探测：PET77_HOST_PID 由宿主 spawn 时注入；未注入/非法 → parseHostPid 给 0 → 不探测（不误退）。
 // DPI 探测实例是一次性短命进程（它的父进程是 helper 而不是宿主），不参与这套机制。
-const HOST_PID = parseHostPid(process.env.DSH_PET_HOST_PID);
+const HOST_PID = parseHostPid(process.env.PET77_HOST_PID);
 if (!DPI_PROBE && HOST_PID > 0) {
   setInterval(() => {
     if (hostIsGone(HOST_PID)) exitForDeadHost();
@@ -117,7 +117,7 @@ if (!DPI_PROBE && HOST_PID > 0) {
 //   - 拖拽移动时窗口四周出现黑色边框（#37）
 //   - 大透明窗移动覆盖小透明窗时，被覆盖窗口内容丢失（显示"消失"）
 // 本进程只渲染轻量宠物动画（640×360），改走软件合成以规避上述缺陷，
-// 不影响浏览器形态与主 DSH（独立进程）；非 Windows（macOS/Linux）合成路径不同，保留硬件加速。
+// 不影响浏览器形态与主 （独立进程）；非 Windows（macOS/Linux）合成路径不同，保留硬件加速。
 if (process.platform === 'win32') {
   app.disableHardwareAcceleration();
 }
@@ -151,14 +151,14 @@ if (process.platform === 'win32') {
 // 主屏上的观感与修复前逐像素相同；其余屏改按主屏缩放渲染宠物（同尺寸同分辨率的两块屏上
 // 物理大小反而一致了）。探测失败就整个不启用，退回修复前行为，不做没有补偿的缩放。
 //
-// 环境变量 DSH_PET_FORCE_DSF：'0' = 关闭本机制；其它正数 = 强制该值（排障用，会踩上面的 bug）。
+// 环境变量 PET77_FORCE_DSF：'0' = 关闭本机制；其它正数 = 强制该值（排障用，会踩上面的 bug）。
 //
 // 「要不要启用 / 强制成几 / 渲染端乘几」三条规则已抽到 dpi-linearization.js（纯函数、带单测）——
 // 其中包含一个平台例外：上面这套补偿的前提是「force-device-scale-factor 会把 DIP 换算成物理像素」，
 // 那是 Windows 的行为，macOS 上不成立。原因与实测数据见该文件头，本文件不再复述。
 //
 // 取值时机是个麻烦：switch 必须在 app ready 之前设，而那时 screen 模块还不可用。
-// 所以首次启动 spawn 一个自己的探测子进程（DSH_PET_DPI_PROBE=1，只打印 scaleFactor 就退出，
+// 所以首次启动 spawn 一个自己的探测子进程（PET77_DPI_PROBE=1，只打印 scaleFactor 就退出，
 // ~0.5s）并把结果落盘；之后每次启动直接读缓存，零开销。
 
 /** 主屏缩放缓存文件（userData 在 ready 前即可用） */
@@ -179,7 +179,7 @@ function writeCachedPrimaryScale(value) {
   try {
     writeFileSync(dpiCacheFile(), JSON.stringify({ scaleFactor: value }), 'utf8');
   } catch (e) {
-    console.error('[dsh-pet-desktop-helper] write dpi cache failed:', String(e && e.message ? e.message : e));
+    console.error('[77-pet] write dpi cache failed:', String(e && e.message ? e.message : e));
   }
 }
 
@@ -193,7 +193,7 @@ function parseProbeOutput(text) {
 /** 拉起探测子进程读主屏 scaleFactor（同一个 electron + 同一个 main.js，走 DPI_PROBE 分支） */
 function probePrimaryScale() {
   const opts = {
-    env: { ...process.env, DSH_PET_DPI_PROBE: '1', DSH_PET_BRIDGE: '0', DSH_PET_SMOKE: '0' },
+    env: { ...process.env, PET77_DPI_PROBE: '1', PET77_BRIDGE: '0', PET77_SMOKE: '0' },
     timeout: 20000,
     encoding: 'utf8',
     windowsHide: true,
@@ -201,7 +201,7 @@ function probePrimaryScale() {
   };
   let out = '';
   try {
-    out = execFileSync(process.execPath, [__filename, '--dsh-pet-dpi-probe'], opts);
+    out = execFileSync(process.execPath, [__filename, '--pet77-dpi-probe'], opts);
   } catch (e) {
     // 只认 stdout，不认退出码：一个不开窗口的 Electron 进程调 app.exit() 在 Windows 上
     // 偶发 0xC0000005（退出期访问违例），但那时值早就写出来了，丢掉它纯属浪费一次冷启动。
@@ -214,7 +214,7 @@ function probePrimaryScale() {
         .filter(Boolean)
         .join(' ');
       console.error(
-        '[dsh-pet-desktop-helper] dpi probe failed:',
+        '[77-pet] dpi probe failed:',
         String(e && e.message ? e.message : e).split('\n')[0],
         detail,
       );
@@ -230,7 +230,7 @@ function probePrimaryScale() {
 let PRIMARY_SCALE = 0;
 /** 实际生效的强制缩放（0 = 未启用，坐标系维持修复前的逐屏 DIP） */
 let FORCED_SCALE = 0;
-const FORCE_DSF = process.env.DSH_PET_FORCE_DSF;
+const FORCE_DSF = process.env.PET77_FORCE_DSF;
 if (shouldLinearize({ platform: process.platform, dpiProbe: DPI_PROBE, forceDsf: FORCE_DSF })) {
   PRIMARY_SCALE = readCachedPrimaryScale() || probePrimaryScale();
   const forced = resolveForcedScale({ forceDsf: FORCE_DSF, primaryScale: PRIMARY_SCALE });
@@ -246,28 +246,26 @@ if (shouldLinearize({ platform: process.platform, dpiProbe: DPI_PROBE, forceDsf:
  */
 function petScale() {
   return resolvePetScale({
-    baseScale: process.env.DSH_PET_SCALE,
+    baseScale: process.env.PET77_SCALE,
     primaryScale: PRIMARY_SCALE,
     forcedScale: FORCED_SCALE,
   });
 }
 
-/** bridge 模式：DSH_PET_BRIDGE=1（宿主注入）。开启时注册 dsh-pet-bridge scheme + 管道转发 */
-const BRIDGE = process.env.DSH_PET_BRIDGE === '1';
+/** bridge 模式：PET77_BRIDGE=1（宿主注入）。开启时注册 pet77-bridge scheme + 管道转发 */
+const BRIDGE = process.env.PET77_BRIDGE === '1';
 
-/** 「打开网站」这一项的去向（宿主按自身形态注入）：
- *  'desktop' = 宿主是 DSH 桌面应用 → 唤起桌面应用主窗口；
- *  'site'    = dsh web / 独立模式 / 手写 start-desktop（无该变量）→ 原行为：默认浏览器打开站点。 */
-const OPEN_TARGET = process.env.DSH_PET_OPEN_TARGET === 'desktop' ? 'desktop' : 'site';
+/** 「打开网站」这一项的去向。desktop 唤起已打开的页面，site 用系统浏览器打开。 */
+const OPEN_TARGET = process.env.PET77_OPEN_TARGET === 'desktop' ? 'desktop' : 'site';
 /** 协议行前缀（与 helper-process.ts 的 BRIDGE_PREFIX 一致） */
-const BRIDGE_PREFIX = 'dsh-pet-bridge:';
+const BRIDGE_PREFIX = 'pet77-bridge:';
 
 if (BRIDGE) {
   // 自定义 scheme：standard（可解析 URL）+ secure（按 https 对待）+ supportFetchAPI（fetch 可用）
   // + stream（视频流）+ corsEnabled（让 CORS 规则生效，配合响应里的 ACAO 头放行 file:// 源页面）
   protocol.registerSchemesAsPrivileged([
     {
-      scheme: 'dsh-pet-bridge',
+      scheme: 'pet77-bridge',
       privileges: {
         standard: true,
         secure: true,
@@ -349,15 +347,15 @@ const inputRegions = new Map();
 const offBodyMs = new Map();
 
 /**
- * 桌面宠物列表（[{id,size}]）：宿主经 DSH_PET_PETS 透传（每只宠物一个窗口）。
+ * 桌面宠物列表（[{id,size}]）：宿主经 PET77_PETS 透传（每只宠物一个窗口）。
  * 解析失败/未透传（手动 start-desktop）时回落到单个默认宠物窗口；renderer 首帧发来的
  * set-bounds 会按真实配置自校正尺寸与位置。
  */
 function petsFromEnv() {
   try {
-    const raw = process.env.DSH_PET_PETS || '';
+    const raw = process.env.PET77_PETS || '';
     const arr = JSON.parse(raw);
-    if (Array.isArray(arr) && arr.length > 0) {
+    if (Array.isArray(arr)) {
       return arr.map((p, i) => ({
         id: String(p?.id ?? `pet-${i}`),
         size: Number(p?.size) > 0 ? Number(p.size) : 462,
@@ -394,7 +392,7 @@ function deskGeometry() {
 function createPetWindows() {
   const geo = deskGeometry();
   const area = geo.hull;
-  const configUrl = process.env.DSH_PET_CONFIG_URL || 'http://127.0.0.1:3080/dsh-pet-7340/config';
+  const configUrl = process.env.PET77_CONFIG_URL || 'http://127.0.0.1:3080/77-pet/config';
   const pets = petsFromEnv();
   const scale = petScale();
   for (const pet of pets) {
@@ -530,7 +528,7 @@ function createPetWindows() {
         },
       })
       .catch((error) => {
-        console.error(`[dsh-pet-desktop-helper] page load failed (${pet.id}):`, error);
+        console.error(`[77-pet] page load failed (${pet.id}):`, error);
         win.destroy();
       });
     windows.set(pet.id, win);
@@ -538,9 +536,9 @@ function createPetWindows() {
 }
 
 // ---------- bridge 协议（渲染端 custom scheme → 本进程 → 宿主 stdout JSON 行 + 本地回调） ----------
-// 渲染端的每个 fetch 都落到 dsh-pet-bridge://，protocol.handle 把请求以一行 JSON 写 stdout 转发宿主。
+// 渲染端的每个 fetch 都落到 pet77-bridge://，protocol.handle 把请求以一行 JSON 写 stdout 转发宿主。
 // 宿主应答**不走近 0 号管道**：Electron 主进程在 Windows 上收不到 piped stdin（electron#4218），
-// 所以本进程开一个 127.0.0.1 随机端口 HTTP 回调（DSH 闸门只拦 DSH WebServer 路由，管不到这里）；
+// 所以本进程开一个 127.0.0.1 随机端口 HTTP 回调（ 闸门只拦  WebServer 路由，管不到这里）；
 // 请求行携带回调 URL，宿主处理完 POST 应答回来，按 id 唤醒等待中的请求。
 // 素材（webm/字体/光标）：宿主只回文件绝对路径，本进程自行读盘应答（二进制不过管道）。
 // 协议行统一前缀 BRIDGE_PREFIX，宿主侧按前缀区分协议与日志（console 输出也走 stdout）。
@@ -574,13 +572,13 @@ function bridgeResolve(resp) {
   p.resolve(resp);
 }
 
-/** 本地回调服务器：宿主把应答 POST 到这里（127.0.0.1 随机端口，绕开 stdin/DSH 闸门） */
+/** 本地回调服务器：宿主把应答 POST 到这里（127.0.0.1 随机端口，绕开 stdin/ 闸门） */
 function startBridgeCallback() {
   const http = require('node:http');
   const server = http.createServer((req, res) => {
     if (req.method !== 'POST' || req.url !== '/respond') {
       res.writeHead(404, { 'content-type': 'text/plain' });
-      res.end('dsh-pet: not found');
+      res.end('77-pet: not found');
       return;
     }
     let raw = '';
@@ -592,28 +590,28 @@ function startBridgeCallback() {
         res.end('ok');
       } catch {
         res.writeHead(400, { 'content-type': 'text/plain' });
-        res.end('dsh-pet: bad payload');
+        res.end('77-pet: bad payload');
       }
     });
     req.on('error', () => {
       res.writeHead(400, { 'content-type': 'text/plain' });
-      res.end('dsh-pet: bad payload');
+      res.end('77-pet: bad payload');
     });
   });
   server.on('error', (e) => {
-    console.error('[dsh-pet-desktop-helper] bridge callback server error:', String(e && e.message ? e.message : e));
+    console.error('[77-pet] bridge callback server error:', String(e && e.message ? e.message : e));
   });
   server.listen(0, '127.0.0.1', () => {
     const addr = server.address();
     bridgeCallbackUrl = 'http://127.0.0.1:' + (addr && typeof addr === 'object' ? addr.port : 0) + '/respond';
-    console.error('[dsh-pet-desktop-helper] bridge callback: ' + bridgeCallbackUrl);
+    console.error('[77-pet] bridge callback: ' + bridgeCallbackUrl);
   });
   return server;
 }
 
 /** 处理一个渲染端请求：拼宿主请求行 → 等应答 → 组装 Response（素材读盘） */
 async function handleBridgeRequest(request) {
-  const url = new URL(request.url); // dsh-pet-bridge://dsh-pet/dsh-pet-7340/...
+  const url = new URL(request.url); // pet77-bridge://77-pet/77-pet/...
   const method = request.method || 'GET';
   let body;
   if (method === 'POST' || method === 'PUT') {
@@ -628,8 +626,8 @@ async function handleBridgeRequest(request) {
       const data = await fsPromises.readFile(resp.file);
       return new Response(new Uint8Array(data), { status: resp.status || 200, headers });
     } catch (e) {
-      console.error('[dsh-pet-desktop-helper] bridge file read failed:', resp.file, e);
-      return new Response('dsh-pet: asset read failed', { status: 500, headers });
+      console.error('[77-pet] bridge file read failed:', resp.file, e);
+      return new Response('77-pet: asset read failed', { status: 500, headers });
     }
   }
   return new Response(resp.body ?? '', { status: resp.status || 200, headers });
@@ -644,7 +642,7 @@ app.whenReady().then(() => {
     return;
   }
   console.error(
-    '[dsh-pet-desktop-helper] displays: ' +
+    '[77-pet] displays: ' +
       JSON.stringify(deskGeometry()) +
       ' forcedScaleFactor=' +
       (FORCED_SCALE || 'off') +
@@ -656,10 +654,10 @@ app.whenReady().then(() => {
 
   if (BRIDGE) {
     // 自定义 scheme 接住渲染端全部请求（配置/余额/碎碎念/广播/素材）
-    protocol.handle('dsh-pet-bridge', (request) =>
+    protocol.handle('pet77-bridge', (request) =>
       handleBridgeRequest(request).catch((e) => {
-        console.error('[dsh-pet-desktop-helper] bridge handler error:', String(e && e.message ? e.message : e));
-        return new Response('dsh-pet: bridge error', {
+        console.error('[77-pet] bridge handler error:', String(e && e.message ? e.message : e));
+        return new Response('77-pet: bridge error', {
           status: 502,
           headers: { 'access-control-allow-origin': '*' },
         });
@@ -680,18 +678,18 @@ app.whenReady().then(() => {
       }
     });
   }
-  if (process.env.DSH_PET_CAPTURE === '1') {
+  if (process.env.PET77_CAPTURE === '1') {
     setTimeout(async () => {
       for (const win of windows.values()) {
         if (win.isDestroyed()) continue;
         const debug = await win.webContents.executeJavaScript(
-          'JSON.stringify({debug:window.__dshPetDebug,videos:[...document.querySelectorAll("video")].map(v=>({src:v.currentSrc,ready:v.readyState,err:v.error&&v.error.message,w:v.videoWidth}))})',
+          'JSON.stringify({debug:window.__pet77Debug,videos:[...document.querySelectorAll("video")].map(v=>({src:v.currentSrc,ready:v.readyState,err:v.error&&v.error.message,w:v.videoWidth}))})',
         );
-        console.log('[dsh-pet-desktop-helper] capture-debug ' + debug);
+        console.log('[77-pet] capture-debug ' + debug);
         const image = await win.webContents.capturePage();
-        const out = '/tmp/dsh-pet-frame.png';
+        const out = '/tmp/pet77-frame.png';
         writeFileSync(out, image.toPNG());
-        console.log('[dsh-pet-desktop-helper] capture ' + out + ' ' + image.getSize().width + 'x' + image.getSize().height);
+        console.log('[77-pet] capture ' + out + ' ' + image.getSize().width + 'x' + image.getSize().height);
       }
     }, 3500);
   }
@@ -801,14 +799,14 @@ app.whenReady().then(() => {
 
   // 右键菜单「打开网站」：交给**系统默认浏览器**打开（等效于网页里 Ctrl+点击链接新标签页），
   // 不建专属窗口——宠物窗口机制是透明小窗，不该承载常规网页浏览。URL 由渲染端从
-  // configUrl 推导 = DSH webServer 端口，端口变化自动跟随
+  // configUrl 推导 =  webServer 端口，端口变化自动跟随
   const openSite = (url) => {
-    // 宿主注入的已鉴权站点 URL（含本进程启动令牌）：DSH 只在 `GET /` 接受它并换发绑定 authority 的
+    // 宿主注入的已鉴权站点 URL（含本进程启动令牌）： 只在 `GET /` 接受它并换发绑定 authority 的
     // 浏览器 Cookie，裸 origin 在默认浏览器里必然 401（#87）。令牌等价登录态，所以**只在与目标同
     // origin 时**才启用——绝不让它被带去别的站点；取不到该变量（旧宿主 / standalone / 手写
     // start-desktop）时，行为与以前完全一致。
     let target = url;
-    const authed = process.env.DSH_PET_SITE_URL || '';
+    const authed = process.env.PET77_SITE_URL || '';
     if (/^https?:[/][/]/.test(authed)) {
       try {
         if (new URL(authed).origin === new URL(url).origin) target = authed;
@@ -817,27 +815,13 @@ app.whenReady().then(() => {
       }
     }
     shell.openExternal(target).catch((error) => {
-      console.error('[dsh-pet-desktop-helper] openExternal failed:', error);
+      console.error('[77-pet] openExternal failed:', error);
     });
   };
 
-  // 去向由宿主形态决定（OPEN_TARGET，宿主按自身形态注入）：
-  //   desktop（宿主 = DSH 桌面应用）→ 用应用自注册的 dsh:// 协议把主窗口叫回前台：已运行则第二个实例
-  //     被单实例锁拦下、宿主收到 second-instance 后 focusPrimaryWindow()；未运行则协议直接把应用拉起来。
-  //     比 spawn 宿主 exe 干净——不必处理 ELECTRON_RUN_AS_NODE（spawn 继承它就成了 node 模式，起不了界面）
-  //     与安装路径探测。
-  //   site（dsh web / 独立模式）→ 原行为：系统默认浏览器打开站点。
   ipcMain.on('pet:open-site', (event, payload) => {
     const url = payload && typeof payload === 'object' ? String(payload.url || '') : '';
     if (!/^https?:[/][/]/.test(url)) return;
-    if (OPEN_TARGET === 'desktop') {
-      // 协议未注册（绿色版 / 注册表被清）时回落成打开站点，至少不是"点了没反应"
-      shell.openExternal('dsh://open').catch((error) => {
-        console.error('[dsh-pet-desktop-helper] open dsh:// failed, falling back to site:', error);
-        openSite(url);
-      });
-      return;
-    }
     openSite(url);
   });
 
@@ -851,7 +835,7 @@ app.whenReady().then(() => {
     for (const win of windows.values()) {
       if (!win.isDestroyed()) win.webContents.send('pet:displays', geo);
     }
-    console.error('[dsh-pet-desktop-helper] displays changed: ' + JSON.stringify(geo));
+    console.error('[77-pet] displays changed: ' + JSON.stringify(geo));
     // 主屏缩放可能一起变了（它决定宠物的尺寸补偿）。线性化生效期间 screen API 只报被强制的值，
     // 真实值只能靠探测子进程拿；不一致就刷新缓存，下次启动自动用上。
     if (FORCED_SCALE > 0) {
@@ -859,7 +843,7 @@ app.whenReady().then(() => {
         const real = probePrimaryScale();
         if (real > 0 && Math.abs(real - PRIMARY_SCALE) > 1e-6) {
           console.error(
-            '[dsh-pet-desktop-helper] primary scaleFactor changed ' +
+            '[77-pet] primary scaleFactor changed ' +
               PRIMARY_SCALE +
               ' -> ' +
               real +
@@ -881,11 +865,11 @@ app.whenReady().then(() => {
   screen.on('display-added', scheduleDisplays);
   screen.on('display-removed', scheduleDisplays);
 
-  // 冒烟自检模式（默认关闭）：DSH_PET_SMOKE=1 时延时截图到 DSH_PET_SMOKE_OUT 后退出，
+  // 冒烟自检模式（默认关闭）：PET77_SMOKE=1 时延时截图到 PET77_SMOKE_OUT 后退出，
   // 用于验证窗口/渲染/动画链路（如 CI 或本地验证）。
-  if (process.env.DSH_PET_SMOKE === '1') {
-    const smokeOut = process.env.DSH_PET_SMOKE_OUT || path.join(app.getPath('temp'), 'dsh-pet-smoke.png');
-    const afterMs = Number(process.env.DSH_PET_SMOKE_AFTER_MS || 9000);
+  if (process.env.PET77_SMOKE === '1') {
+    const smokeOut = process.env.PET77_SMOKE_OUT || path.join(app.getPath('temp'), 'pet77-smoke.png');
+    const afterMs = Number(process.env.PET77_SMOKE_AFTER_MS || 9000);
     const target = windows.values().next().value;
     if (target) {
       // 转发渲染端 console（定位动画/余额/错误问题）
@@ -902,7 +886,7 @@ app.whenReady().then(() => {
             hasSetInteractive: typeof window.petBridge?.setInteractive === 'function',
             viewport: window.innerWidth + 'x' + window.innerHeight,
             dpr: window.devicePixelRatio,
-            debug: window.__dshPetDebug || null,
+            debug: window.__pet77Debug || null,
             sprites: document.querySelectorAll('.pet-sprite').length,
             errorVisible: document.getElementById('pet-error').classList.contains('visible'),
             errorText: document.getElementById('pet-error').textContent,
@@ -932,7 +916,7 @@ app.whenReady().then(() => {
               // 拖拽抛掷物理（弹簧跟手+甩抛）下：指针长距跳跃后弹簧需要 ~0.3s 收敛，
               // 松手前停留超过 RELEASE_STALE_MS(150ms) 判为「温柔放下」（估速 null，不抛掷）——
               // 所以先等弹簧到位、再停留才松手，只测"释放瞬间是否位移"。
-              var d = window.__dshPetDebug;
+              var d = window.__pet77Debug;
               var hit = document.querySelector('.pet-hit');
               if (!d || !d.dragPos || !hit) return null;
               var P = { x: d.dragPos.x, y: d.dragPos.y };
@@ -961,7 +945,7 @@ app.whenReady().then(() => {
             interactiveFlip: (function () {
               // 点击穿透命中判定：光标在命中区内→可交互；移出→穿透；拖拽中（pointer 已捕获）→强制可交互。
               // hitRect 是 sprite 坐标，mousemove 用窗口坐标——测试事件需加上窗口外扩余量 winMargin。
-              var d = window.__dshPetDebug;
+              var d = window.__pet77Debug;
               var hit = document.querySelector('.pet-hit');
               if (!d || !d.hitRect || !d.winMargin || !hit) return null;
               var r = d.hitRect;
@@ -991,7 +975,7 @@ app.whenReady().then(() => {
                 setTimeout(resolve, 250);
               });
               var hit = document.querySelector('.pet-hit');
-              var d = window.__dshPetDebug;
+              var d = window.__pet77Debug;
               if (!hit || !d) return null;
               var errsBefore = (d.errors || []).length;
               try {
@@ -1001,7 +985,7 @@ app.whenReady().then(() => {
               } catch (err) {
                 return { threw: String(err), menuMounted: false };
               }
-              var menu = document.querySelector('.dsh-pet-menu');
+              var menu = document.querySelector('.pet77-menu');
               var out = {
                 threw: null,
                 menuMounted: !!menu,
@@ -1010,11 +994,11 @@ app.whenReady().then(() => {
                 errsNew: (d.errors || []).length - errsBefore,
               };
               if (menu) {
-                var branch = menu.querySelector('.dsh-pet-menu-branch');
+                var branch = menu.querySelector('.pet77-menu-branch');
                 if (branch) {
                   branch.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, relatedTarget: menu }));
                   var panels = Array.prototype.slice.call(
-                    menu.querySelectorAll('.dsh-pet-menu-column'),
+                    menu.querySelectorAll('.pet77-menu-column'),
                   );
                   var visible = function () {
                     return panels.filter(function (p) {
@@ -1028,7 +1012,7 @@ app.whenReady().then(() => {
                     return p !== panels[0];
                   })[0];
                   if (panel1) {
-                    var cat = panel1.querySelector('.dsh-pet-menu-branch');
+                    var cat = panel1.querySelector('.pet77-menu-branch');
                     if (cat) {
                       cat.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, relatedTarget: panel1 }));
                       await new Promise(function (resolve) {
@@ -1067,14 +1051,14 @@ app.whenReady().then(() => {
             })(),
           }))()`);
           console.log(
-            '[dsh-pet-desktop-helper] smoke dump: windows=' +
+            '[77-pet] smoke dump: windows=' +
               windows.size +
               ' ids=' +
               JSON.stringify([...windows.keys()]) +
               ' => ' +
               JSON.stringify(dump),
           );
-          console.log('[dsh-pet-desktop-helper] smoke bounds:', JSON.stringify(first.getContentBounds()));
+          console.log('[77-pet] smoke bounds:', JSON.stringify(first.getContentBounds()));
           // 点击穿透 round-trip：setInteractive(true)→窗口捕获输入（忽略鼠标=false）；
           // setInteractive(false)→恢复整窗穿透（忽略鼠标=true）。状态取自主进程镜像 windowIgnore。
           // 期间暂停兜底轮询：它按真实光标位置翻转，冒烟时鼠标不在宠物身上会覆盖本断言的状态。
@@ -1087,15 +1071,15 @@ app.whenReady().then(() => {
           const passthroughIgnoring = windowIgnore.get(first.id);
           pointerFallbackPaused = false;
           console.log(
-            '[dsh-pet-desktop-helper] smoke interactive round-trip:',
+            '[77-pet] smoke interactive round-trip:',
             JSON.stringify({ interactiveIgnoring, passthroughIgnoring }),
           );
           const image = await first.webContents.capturePage();
           writeFileSync(smokeOut, image.toPNG());
-          console.log('[dsh-pet-desktop-helper] smoke capture:', smokeOut);
+          console.log('[77-pet] smoke capture:', smokeOut);
         }
       } catch (error) {
-        console.error('[dsh-pet-desktop-helper] smoke capture failed:', error);
+        console.error('[77-pet] smoke capture failed:', error);
       }
       setTimeout(() => app.quit(), 500);
     }, afterMs);

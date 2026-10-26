@@ -9,7 +9,7 @@ const http = require('node:http');
 const path = require('node:path');
 
 function origin() {
-  const configUrl = process.env.DSH_PET_CONFIG_URL || 'http://127.0.0.1:3080/dsh-pet-7340/config';
+  const configUrl = process.env.PET77_CONFIG_URL || 'http://127.0.0.1:3080/77-pet/config';
   return new URL(configUrl).origin;
 }
 
@@ -28,17 +28,19 @@ function request(method, pathname, body) {
     },
     () => {},
   );
-  req.on('error', (error) => console.error('[dsh-pet] tray request failed:', error.message));
+  req.on('error', (error) => console.error('[77-pet] tray request failed:', error.message));
   if (payload) req.write(payload);
   req.end();
 }
 
 function openPetConfig() {
   const win = new BrowserWindow({
-    width: 720,
-    height: 640,
+    width: 920,
+    height: 680,
+    minWidth: 760,
+    minHeight: 560,
     title: '桌宠配置',
-    resizable: false,
+    resizable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -238,14 +240,14 @@ function installTray() {
     applied = true;
     unread = value;
     tray.setImage(value ? badgedIcon : plainIcon);
-    tray.setToolTip(value ? 'dsh-pet 桌宠（有新版本）' : 'dsh-pet 桌宠');
+    tray.setToolTip(value ? '77-pet 桌宠（有新版本）' : '77-pet 桌宠');
     tray.setContextMenu(buildMenu(value));
   };
   applyUnread(false);
-  global.__dshPetOnUpdate = (state) => applyUnread(state && state.unread);
-  global.__dshPetTray = tray;
+  global.__pet77OnUpdate = (state) => applyUnread(state && state.unread);
+  global.__pet77Tray = tray;
   const pull = () => {
-    requestJson('GET', '/dsh-pet-7340/app-update').then((data) => {
+    requestJson('GET', '/77-pet/app-update').then((data) => {
       if (data) applyUnread(data.unread);
     });
   };
