@@ -640,20 +640,29 @@ struct FloatPet {
     }
     this.moveTimer = setInterval(() => {
       const target = PetBridge.pendingMove;
-      if (!target || this.moveBusy) {
+      if (!target) {
         return;
       }
       const win = FloatWin.get();
       if (!win) {
         return;
       }
-      // 拖拽和抛掷也走这条通道（页面的弹簧跟随会每帧上报目标位置），
-      // 所以这里不能按 dragging 过滤 —— 只按时间节拍丢帧合并。
       PetBridge.pendingMove = null;
       const x = Math.round(target[0]);
       const y = Math.round(target[1]);
       const rect = win.getWindowProperties().windowRect;
       if (x === rect.left && y === rect.top) {
+        return;
+      }
+      // 拖拽是实时输入，不能等上一次窗口移动完成；始终提交最新位置，
+      // 让窗口服务自己合并中间帧。漫游/抛掷保持串行，避免请求堆积。
+      if (this.dragConfirmed) {
+        this.winX = x;
+        this.winY = y;
+        this.moveWindowsToLive(x, y, rect.width);
+        return;
+      }
+      if (this.moveBusy) {
         return;
       }
       this.moveBusy = true;
@@ -838,12 +847,26 @@ struct FloatPet {
     const s = windowW / WIN_W;
     const hit = HitWin.get();
     if (hit) {
-      hit.moveWindowTo(Math.round(x + HIT_X * s), y)
+      hit.moveWindowToAsync(Math.round(x + HIT_X * s), y)
         .catch((e: BusinessError) => {
           hilog.warn(DOMAIN, TAG, 'hit window move failed: %{public}s', e.message);
         });
     }
-    return win.moveWindowTo(x, y);
+    return win.moveWindowToAsync(x, y);
+  }
+
+  /** 拖拽专用：直接提交最新位置，不等待上一次移动结束 */
+  private moveWindowsToLive(x: number, y: number, windowW: number): void {
+    const win = FloatWin.get();
+    if (!win) {
+      return;
+    }
+    // 拖拽开始后触摸目标已经锁定在点击区上，指针离开点击区仍会继续收到
+    // 移动和抬手事件；这段时间不再搬透明点击窗，减少一半窗口合成。
+    win.moveWindowTo(x, y)
+      .catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'float window live move failed: %{public}s', e.message);
+      });
   }
 
   /** 点击区窗口的事件轮询：16ms 一次，只读内存队列 */
