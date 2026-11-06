@@ -81,7 +81,7 @@ struct PetMenuPage {
         .layoutWeight(1)
       }
       Divider().color('#e0e0e0')
-      this.row('叫它一声', () => {
+      this.row('碎碎念', () => {
         PetMenu.requestWhisper();
       }, false)
       Divider().color('#e0e0e0')

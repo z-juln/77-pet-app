@@ -3,7 +3,7 @@ import { util } from '@kit.ArkTS';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AnimConfig } from './AnimMenu';
-import { AlphaMask } from './PetBridge';
+import { AlphaMask, PetContentInsets, DEFAULT_PET_CONTENT_INSETS } from './PetBridge';
 
 const DOMAIN = 0x7700;
 const TAG = 'Pet77';
@@ -87,5 +87,46 @@ export class PetPacks {
         pack, err.message);
     }
     return out;
+  }
+
+  /**
+   * 可见角色在视频画布里的内缩比例。
+   * 用待机动画的轮廓作为身体范围，避免把大片透明留白和偶尔冲出画面的特效算成身体。
+   */
+  static loadContentInsets(ctx: common.UIAbilityContext, pack: string): PetContentInsets {
+    const cfg = PetPacks.loadAnimConfig(ctx, pack);
+    if (!cfg || !cfg.idle || cfg.idle.length === 0) {
+      return DEFAULT_PET_CONTENT_INSETS;
+    }
+    const masks = PetPacks.loadMasks(ctx, pack);
+    const mask = masks.get(cfg.idle[0]);
+    if (!mask || mask.rows.length === 0) {
+      return DEFAULT_PET_CONTENT_INSETS;
+    }
+    let minX = mask.w;
+    let minY = mask.h;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < mask.rows.length; y++) {
+      const row = mask.rows[y];
+      for (let x = 0; x < mask.w; x++) {
+        const digit = parseInt(row.charAt(x >> 2), 16);
+        if (((digit >> (3 - (x & 3))) & 1) === 1) {
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+    if (maxX < 0 || maxY < 0) {
+      return DEFAULT_PET_CONTENT_INSETS;
+    }
+    return {
+      left: minX / mask.w,
+      top: minY / mask.h,
+      right: 1 - (maxX + 1) / mask.w,
+      bottom: 1 - (maxY + 1) / mask.h
+    };
   }
 }

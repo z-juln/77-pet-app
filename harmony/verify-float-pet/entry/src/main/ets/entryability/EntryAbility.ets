@@ -1,10 +1,20 @@
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { display, window } from '@kit.ArkUI';
+import { window } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { FloatWin } from '../common/FloatWin';
 import { HitWin } from '../common/HitWin';
-import { WIN_W, WIN_H, HIT_X, HIT_Y, HIT_W, HIT_H } from '../common/PetBridge';
+import {
+  WIN_W,
+  WIN_H,
+  HIT_X,
+  HIT_Y,
+  HIT_W,
+  HIT_H,
+  petScreenScale,
+  getWallpaperSize,
+  clampPetWindow
+} from '../common/PetBridge';
 import { AbilityCtx } from '../common/AbilityCtx';
 import { PetPacks } from '../common/PetPacks';
 import { PetSettingsStore } from '../common/PetSettings';
@@ -91,7 +101,7 @@ export default class EntryAbility extends UIAbility {
         if (!win) {
           return Promise.resolve();
         }
-        const scale = PetSettingsStore.load().scale;
+        const scale = PetSettingsStore.load().scale * petScreenScale();
         winW = Math.round(WIN_W * scale);
         winH = Math.round(WIN_H * scale);
         return win.resize(winW, winH)
@@ -173,26 +183,15 @@ export default class EntryAbility extends UIAbility {
    * 保存的位置可能来自更小的屏幕，所以按当前屏幕范围做一次收敛。
    */
   private initialPosition(w: number, h: number): Array<number> {
-    let screenW = 1920;
-    let screenH = 1080;
-    try {
-      const d = display.getDefaultDisplaySync();
-      screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
-      screenH = d.availableHeight > 0 ? d.availableHeight : d.height;
-    } catch (e) {
-      const err = e as BusinessError;
-      hilog.warn(DOMAIN, TAG, 'initialPosition display read failed: %{public}s', err.message);
-    }
+    const screen = getWallpaperSize();
+    const screenW = screen[0];
+    const screenH = screen[1];
+    const insets = PetPacks.loadContentInsets(this.context, PetSettingsStore.load().petPack);
     const saved = PetSettingsStore.loadPosition();
     if (saved[0] !== -1 || saved[1] !== -1) {
-      const x = Math.min(Math.max(saved[0], -Math.round(w * 0.45)), screenW - 64);
-      const y = Math.min(Math.max(saved[1], 0), Math.max(0, screenH - 80));
-      return [x, y];
+      return clampPetWindow(saved[0], saved[1], w, h, screenW, screenH, insets);
     }
-    return [
-      Math.max(24, screenW - w - 48),
-      Math.max(0, screenH - h - 24)
-    ];
+    return clampPetWindow(screenW - w - 48, screenH - h - 24, w, h, screenW, screenH, insets);
   }
 
   /**

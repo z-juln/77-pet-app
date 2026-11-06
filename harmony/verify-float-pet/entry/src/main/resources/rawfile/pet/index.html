@@ -142,12 +142,46 @@
       let WINDOW_W = WIN_W;
       let WINDOW_H = WIN_H;
       let PET_SCALE = 1;
+      /** 窗口与壁纸可用区域边缘的安全距离 */
+      const EDGE_GAP = 24;
+      /** 可见角色在透明视频画布里的内缩比例；实际值由 ArkTS 按当前宠物包注入 */
+      let CONTENT_INSETS = { left: 0.3, top: 0.17, right: 0.31, bottom: 0.08 };
       /** 模拟器兼容：待机定格，主动交互时仍播放，避免宿主 GPU 持续合成闪黑 */
       let stableMotion = false;
       /** 素材坐标(640x360) → 屏幕像素 的缩放；鸿蒙窗口是 384x216，即 0.6 */
       const SCREEN_SCALE = 0.6;
-      /** 身体命中区在 640x360 画布里的左右边界（与 alpha 遮罩的 sideAllow 同一套语义） */
-      const HIT_X0 = 100;
+
+      /** 当前窗口允许停留的壁纸区域；底部栏等系统占位已经在 SCREEN_H 里排除 */
+      function wallpaperBounds() {
+        const maxX = Math.max(0, SCREEN_W - WINDOW_W);
+        const maxY = Math.max(0, SCREEN_H - WINDOW_H);
+        const gapX = Math.min(EDGE_GAP, maxX);
+        const gapY = Math.min(EDGE_GAP, maxY);
+        const padH = WIN_PAD_TOP / WIN_H * WINDOW_H;
+        const videoH = WINDOW_H - padH;
+        // 约束的是可见角色本身：透明气泡区和视频四周的留白都可以越过屏幕边缘。
+        const leftPx = WINDOW_W * Math.min(Math.max(CONTENT_INSETS.left, 0), 0.45);
+        const rightPx = WINDOW_W * Math.min(Math.max(CONTENT_INSETS.right, 0), 0.45);
+        const topPx = videoH * Math.min(Math.max(CONTENT_INSETS.top, 0), 0.45);
+        const bottomPx = videoH * Math.min(Math.max(CONTENT_INSETS.bottom, 0), 0.45);
+        const minX = gapX - leftPx;
+        const minY = gapY - padH - topPx;
+        return {
+          minX,
+          minY,
+          maxX: Math.max(minX, maxX - gapX + rightPx),
+          maxY: Math.max(minY, maxY - gapY + bottomPx),
+        };
+      }
+
+      function clampWindowPoint(x, y) {
+        const b = wallpaperBounds();
+        return {
+          x: Math.min(Math.max(x, b.minX), b.maxX),
+          y: Math.min(Math.max(y, b.minY), b.maxY),
+        };
+      }
+
       // ---------- 拖拽抛掷物理 ----------
       //
       // 与 Electron 版 vendor/shared/physics.ts 逐行对应的移植：弹簧跟手（拖拽时不硬贴指针）、
@@ -259,16 +293,9 @@
         }
       }
 
-      /** 屏幕边界：身体贴边即反弹。留 sideAllow 让宠物能走到边缘但身体不越界 */
+      /** 屏幕边界：整个窗口都必须留在壁纸可用区域内 */
       function throwBounds() {
-        const sideAllow = (HIT_X0 / 640) * WINDOW_W;
-        return {
-          minX: -sideAllow,
-          minY: 0,
-          maxX: SCREEN_W - WINDOW_W + sideAllow,
-          // 窗口底部是脚，贴着屏幕底边；窗口顶部那块气泡区可以出屏（头顶气泡不占位）
-          maxY: SCREEN_H - WINDOW_H,
-        };
+        return wallpaperBounds();
       }
 
       /**
@@ -318,7 +345,8 @@
         stopRoam();
         stopDragFollow();
         const token = ++throwToken;
-        let state = { x: px, y: py, vx, vy };
+        const start = clampWindowPoint(px, py);
+        let state = { x: start.x, y: start.y, vx, vy };
         let last = performance.now();
         let prevGrounded = false;
 
@@ -438,6 +466,15 @@
           dragVel.vy = springStep(dragVel.vy, followPos.y, target.y, dt);
           followPos.x += dragVel.vx * dt;
           followPos.y += dragVel.vy * dt;
+          const bounded = clampWindowPoint(followPos.x, followPos.y);
+          if (bounded.x !== followPos.x) {
+            followPos.x = bounded.x;
+            dragVel.vx = 0;
+          }
+          if (bounded.y !== followPos.y) {
+            followPos.y = bounded.y;
+            dragVel.vy = 0;
+          }
           pushMove(followPos.x, followPos.y);
           dragFollowRef = requestAnimationFrame(step);
         };
@@ -447,7 +484,10 @@
       /** 把目标窗口坐标交给 ArkTS 去 moveWindowTo */
       function pushMove(x, y) {
         const h = host();
-        if (h && typeof h.requestMove === 'function') h.requestMove(Math.round(x), Math.round(y));
+        if (h && typeof h.requestMove === 'function') {
+          const bounded = clampWindowPoint(x, y);
+          h.requestMove(Math.round(bounded.x), Math.round(bounded.y));
+        }
       }
 
       // ---------- 视口自适应 ----------
@@ -819,10 +859,11 @@
         const dist = m.minDist + Math.random() * (m.maxDist - m.minDist);
         const targetX = startX + dir * dist * SCREEN_SCALE * PET_SCALE;
 
-        // 边界：留出 margin，不允许走出屏幕
+        // 边界：整个窗口都必须留在壁纸可用区域内
+        const b = wallpaperBounds();
         const margin = (m.margin || 20) * SCREEN_SCALE;
-        const minX = margin;
-        const maxX = SCREEN_W - WINDOW_W - margin;
+        const minX = Math.min(b.maxX, Math.max(b.minX, margin));
+        const maxX = b.maxX;
         if (targetX < minX || targetX > maxX) {
           log('roam rejected: ' + m.name + ' target=' + Math.round(targetX) +
               ' outside [' + Math.round(minX) + ',' + Math.round(maxX) + ']');
@@ -918,8 +959,9 @@
           if (!CFG) return;
           dragActive = false;
           stopRoam();
-          switchTo(pick(CFG.clicks, currentName), true);
-          squash(0.55);
+          const name = pick(CFG.clicks, currentName);
+          // 等点击回应真正切到前台后再压扁；否则会作用在旧视频上，看起来没有反馈。
+          switchTo(name, true, () => squash(0.55));
         },
         /** 点播指定动画（右键菜单选中的那一段），播完回状态机 */
         play(file) {
@@ -956,6 +998,9 @@
             x: dragDown.px + (x - dragDown.sx),
             y: dragDown.py + (y - dragDown.sy),
           };
+          const bounded = clampWindowPoint(dragTarget.x, dragTarget.y);
+          dragTarget.x = bounded.x;
+          dragTarget.y = bounded.y;
           startDragFollow();
         },
         /**
@@ -1009,12 +1054,17 @@
         started = true;
         CFG = cfg;
         stableMotion = cfg.stableMotion === true;
-        if (typeof cfg.originX === 'number') baseX = cfg.originX;
-        if (typeof cfg.originY === 'number') baseY = cfg.originY;
         if (typeof cfg.screenW === 'number' && cfg.screenW > 0) SCREEN_W = cfg.screenW;
         if (typeof cfg.screenH === 'number' && cfg.screenH > 0) SCREEN_H = cfg.screenH;
         if (typeof cfg.windowW === 'number' && cfg.windowW > 0) WINDOW_W = cfg.windowW;
         if (typeof cfg.windowH === 'number' && cfg.windowH > 0) WINDOW_H = cfg.windowH;
+        if (cfg.contentInsets) CONTENT_INSETS = cfg.contentInsets;
+        const origin = clampWindowPoint(
+          typeof cfg.originX === 'number' ? cfg.originX : baseX,
+          typeof cfg.originY === 'number' ? cfg.originY : baseY
+        );
+        baseX = origin.x;
+        baseY = origin.y;
         if (cfg.physics) PHYS = cfg.physics;
         followPos = { x: baseX, y: baseY };
         // 视频高度由窗口尺寸决定：窗口高 - 气泡区 = 视频画布
@@ -1064,12 +1114,17 @@
         currentName = '';
         onceMode = false;
         dragActive = false;
-        if (typeof cfg.originX === 'number') baseX = cfg.originX;
-        if (typeof cfg.originY === 'number') baseY = cfg.originY;
         if (typeof cfg.screenW === 'number' && cfg.screenW > 0) SCREEN_W = cfg.screenW;
         if (typeof cfg.screenH === 'number' && cfg.screenH > 0) SCREEN_H = cfg.screenH;
         if (typeof cfg.windowW === 'number' && cfg.windowW > 0) WINDOW_W = cfg.windowW;
         if (typeof cfg.windowH === 'number' && cfg.windowH > 0) WINDOW_H = cfg.windowH;
+        if (cfg.contentInsets) CONTENT_INSETS = cfg.contentInsets;
+        const origin = clampWindowPoint(
+          typeof cfg.originX === 'number' ? cfg.originX : baseX,
+          typeof cfg.originY === 'number' ? cfg.originY : baseY
+        );
+        baseX = origin.x;
+        baseY = origin.y;
         if (cfg.physics) PHYS = cfg.physics;
         followPos = { x: baseX, y: baseY };
         for (const v of videos) {
@@ -1091,9 +1146,10 @@
 
       /** 拖拽结束后同步窗口真实位置，否则下次漫游会从旧位置起算 */
       window.petSyncPos = (x, y) => {
-        baseX = x;
-        baseY = y;
-        followPos = { x, y };
+        const bounded = clampWindowPoint(x, y);
+        baseX = bounded.x;
+        baseY = bounded.y;
+        followPos = { x: bounded.x, y: bounded.y };
         stopRoam();
         stopThrow();
         stopDragFollow();
@@ -1132,7 +1188,7 @@
        * 只处理页面自己负责的部分：透明度（CSS）、行走权重（随机链）、碎碎念周期与开关。
        * 缩放由 ArkTS 直接改窗口尺寸 —— 页面不用知道自己多大，CSS 都是百分比。
        */
-      window.petSettings = (s) => {
+      window.petSettings = (s, windowScale) => {
         if (!s) return;
         if (typeof s.opacity === 'number') {
           document.body.style.opacity = String(Math.min(Math.max(s.opacity, 0.1), 1));
@@ -1153,10 +1209,14 @@
           // 0 = 完全不走动；其余直接替换配置里的 move 权重
           CFG.weights.move = Math.max(0, s.moveWeight);
         }
-        if (typeof s.scale === 'number' && s.scale > 0) {
-          PET_SCALE = s.scale;
-          WINDOW_W = Math.round(WIN_W * s.scale);
-          WINDOW_H = Math.round(WIN_H * s.scale);
+        if (typeof windowScale === 'number' && windowScale > 0) {
+          PET_SCALE = windowScale;
+          WINDOW_W = Math.round(WIN_W * windowScale);
+          WINDOW_H = Math.round(WIN_H * windowScale);
+          const bounded = clampWindowPoint(baseX, baseY);
+          baseX = bounded.x;
+          baseY = bounded.y;
+          followPos = { x: baseX, y: baseY };
         }
         if (typeof s.whisperOn === 'boolean') {
           whisperEnabled = s.whisperOn;

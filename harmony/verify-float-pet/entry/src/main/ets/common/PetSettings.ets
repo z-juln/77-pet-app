@@ -35,7 +35,7 @@ export const SETTINGS_H = 680;
 export interface PetSettings {
   /** 当前宠物包 id，对应 rawfile/pet/packs/<id> */
   petPack: string;
-  /** 宠物缩放：窗口和视频一起放大缩小（1.0 = 现在的 384 宽） */
+  /** 宠物缩放：相对屏幕默认占比的倍率（1.0 = 与 Mac 版接近的默认大小） */
   scale: number;
   /** 桌面整体不透明度：气泡和宠物一起变淡，不影响点击 */
   opacity: number;

@@ -1,4 +1,5 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { display } from '@kit.ArkUI';
 
 const DOMAIN = 0x7700;
 const TAG = 'Pet77';
@@ -18,6 +19,97 @@ export const VIDEO_H = 216;
 export const WIN_PAD_TOP = 180;
 /** 窗口高度 = 视频 + 气泡区 */
 export const WIN_H = VIDEO_H + WIN_PAD_TOP;
+
+/** 宠物窗口与壁纸可用区域边缘保留的距离，避免贴住底部栏或屏幕边缘 */
+export const PET_EDGE_GAP = 24;
+
+/** 宠物本体在视频画布内的占比，用于按可见角色而不是整张透明画布算活动边界 */
+export interface PetContentInsets {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+export const DEFAULT_PET_CONTENT_INSETS: PetContentInsets = {
+  left: 0.3,
+  top: 0.17,
+  right: 0.31,
+  bottom: 0.08
+};
+
+/** Mac 版默认宠物画布宽度与参考屏幕宽度，用于换算鸿蒙上的默认相对大小 */
+const MAC_PET_W = 462;
+const MAC_SCREEN_W = 1512;
+
+/**
+ * 鸿蒙默认宠物大小：按 Mac 版「宠物宽 / 屏幕宽」的比例换算。
+ *
+ * 设置里的 scale 仍是相对值（1 = 这个默认大小）。这样不同分辨率、横竖屏
+ * 都能得到接近 Mac 版的视觉占比，而不是在每台设备上固定 384 像素。
+ */
+export function petScreenScale(): number {
+  let screenW = MAC_SCREEN_W;
+  try {
+    const d = display.getDefaultDisplaySync();
+    screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
+  } catch (e) {
+    const err = e as Error;
+    hilog.warn(DOMAIN, TAG, 'petScreenScale display read failed: %{public}s', err.message);
+  }
+  const scale = screenW * MAC_PET_W / MAC_SCREEN_W / WIN_W;
+  // 兜底范围只防异常分辨率把窗口撑到不可用，正常设备不会碰到上下限
+  return Math.min(Math.max(scale, 0.5), 4);
+}
+
+/** 当前壁纸可用区域；已排除底部栏等系统占位。 */
+export function getWallpaperSize(): Array<number> {
+  let screenW = 1920;
+  let screenH = 1080;
+  try {
+    const d = display.getDefaultDisplaySync();
+    screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
+    screenH = d.availableHeight > 0 ? d.availableHeight : d.height;
+  } catch (e) {
+    const err = e as Error;
+    hilog.warn(DOMAIN, TAG, 'getWallpaperSize display read failed: %{public}s', err.message);
+  }
+  return [screenW, screenH];
+}
+
+/**
+ * 把宠物窗口左上角限制在壁纸可用区域内。
+ * 拖动、甩出、自动走动和恢复上次位置都必须经过这里，避免进入底部栏后拉不回来。
+ */
+export function clampPetWindow(
+  x: number,
+  y: number,
+  winW: number,
+  winH: number,
+  screenW: number,
+  screenH: number,
+  insets: PetContentInsets = DEFAULT_PET_CONTENT_INSETS
+): Array<number> {
+  const maxX = Math.max(0, Math.round(screenW - winW));
+  const maxY = Math.max(0, Math.round(screenH - winH));
+  const gapX = Math.min(PET_EDGE_GAP, maxX);
+  const gapY = Math.min(PET_EDGE_GAP, maxY);
+  const padH = Math.round(winH * WIN_PAD_TOP / WIN_H);
+  const videoH = winH - padH;
+  // 透明画布四周的留白不算活动边界；只让可见角色可以贴到壁纸四边。
+  const leftPx = winW * Math.min(Math.max(insets.left, 0), 0.45);
+  const rightPx = winW * Math.min(Math.max(insets.right, 0), 0.45);
+  const topPx = videoH * Math.min(Math.max(insets.top, 0), 0.45);
+  const bottomPx = videoH * Math.min(Math.max(insets.bottom, 0), 0.45);
+  const minX = gapX - leftPx;
+  const maxContentX = screenW - winW - gapX + rightPx;
+  const minY = gapY - padH - topPx;
+  const maxContentY = screenH - winH - gapY + bottomPx;
+  return [
+    Math.min(Math.max(Math.round(x), minX), Math.max(minX, maxContentX)),
+    Math.min(Math.max(Math.round(y), minY), Math.max(minY, maxContentY))
+  ];
+}
 
 /**
  * 点击区窗口相对宠物窗口的位置和尺寸（逻辑坐标）。

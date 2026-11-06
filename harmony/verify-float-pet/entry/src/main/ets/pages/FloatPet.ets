@@ -9,7 +9,20 @@ import { http } from '@kit.NetworkKit';
 import { FloatWin } from '../common/FloatWin';
 import { HitWin } from '../common/HitWin';
 import { PetInput } from '../common/PetInput';
-import { PetBridge, WIN_W, WIN_H, WIN_PAD_TOP, HIT_X, HIT_W, HIT_H } from '../common/PetBridge';
+import {
+  PetBridge,
+  WIN_W,
+  WIN_H,
+  WIN_PAD_TOP,
+  HIT_X,
+  HIT_W,
+  HIT_H,
+  petScreenScale,
+  getWallpaperSize,
+  clampPetWindow,
+  PetContentInsets,
+  DEFAULT_PET_CONTENT_INSETS
+} from '../common/PetBridge';
 import { PetMenu, MENU_W, MENU_H } from '../common/PetMenu';
 import { AbilityCtx } from '../common/AbilityCtx';
 import { AnimConfig, MenuGroup, buildMenu } from '../common/AnimMenu';
@@ -76,6 +89,8 @@ struct FloatPet {
   private moveTimer: number = -1;
   /** 已发出的窗口移动是否还在途中（避免请求堆积） */
   private moveBusy: boolean = false;
+  /** 移动停止后的点击区校准计时器 */
+  private hitSyncTimer: number = -1;
   /** 右键菜单的分组数据，由动画配置推出 */
   @State menuGroups: Array<MenuGroup> = [];
   /** 菜单窗口是否已打开 */
@@ -105,6 +120,11 @@ struct FloatPet {
   private inputTimer: number = -1;
   /** 屏幕密度：触摸坐标是 vp，窗口坐标是 px，拖拽增量要按它换算 */
   private density: number = 1;
+  /** 壁纸可用区域，移动窗口时用它做最后一道边界校验 */
+  private screenW: number = 1920;
+  private screenH: number = 1080;
+  /** 当前宠物可见身体在透明视频画布里的内缩比例 */
+  private contentInsets: PetContentInsets = DEFAULT_PET_CONTENT_INSETS;
   /** 画面窗自己收到触摸时的最后坐标（点击区建不出来时仍能操作） */
   private lastTouchX: number = 0;
   private lastTouchY: number = 0;
@@ -428,7 +448,9 @@ struct FloatPet {
 
   private applySettings(): void {
     const s = PetSettingsStore.load();
-    const key = `${s.petPack}|${s.scale}|${s.opacity}|${s.moveWeight}|${s.stableMotion}|` +
+    const screenScale = petScreenScale();
+    const effectiveScale = screenScale * s.scale;
+    const key = `${s.petPack}|${s.scale}|${screenScale}|${s.opacity}|${s.moveWeight}|${s.stableMotion}|` +
       `${s.whisperOn}|${s.whisperSec}`;
     if (key === this.appliedSettingsKey) {
       return;
@@ -448,7 +470,7 @@ struct FloatPet {
     // 1) 推给页面：透明度、走动权重、碎碎念（这些是页面状态机的事）
     if (this.pageLoaded) {
       this.controller.runJavaScript(
-        `window.petSettings && window.petSettings(${JSON.stringify(s)});`)
+        `window.petSettings && window.petSettings(${JSON.stringify(s)},${effectiveScale});`)
         .catch((e: BusinessError) => {
           hilog.error(DOMAIN, TAG, 'push settings failed: %{public}s', e.message);
         });
@@ -460,28 +482,43 @@ struct FloatPet {
       return;
     }
     const rect = win.getWindowProperties().windowRect;
-    const newW = Math.round(WIN_W * s.scale);
-    const newH = Math.round(WIN_H * s.scale);
+    const newW = Math.round(WIN_W * effectiveScale);
+    const newH = Math.round(WIN_H * effectiveScale);
     if (newW === rect.width && newH === rect.height) {
       return;
     }
-    // 底边对齐：高度变化量换算成顶部的上移量
-    const newTop = rect.top + (rect.height - newH);
+    const screen = getWallpaperSize();
+    this.screenW = screen[0];
+    this.screenH = screen[1];
+    // 底边对齐；尺寸变化后仍必须完整留在壁纸可用区域内
+    const bounded = clampPetWindow(
+      rect.left,
+      rect.top + (rect.height - newH),
+      newW,
+      newH,
+      this.screenW,
+      this.screenH,
+      this.contentInsets
+    );
+    const newLeft = bounded[0];
+    const newTop = bounded[1];
     const hit = HitWin.get();
     win.resize(newW, newH)
       .then(() => {
         // 点击区跟着一起缩放，并重新贴回宠物身体那一竖条
         if (hit) {
-          return hit.resize(Math.round(HIT_W * s.scale), Math.round(HIT_H * s.scale));
+          return hit.resize(Math.round(HIT_W * effectiveScale), Math.round(HIT_H * effectiveScale));
         }
         return Promise.resolve();
       })
-      .then(() => this.moveWindowsTo(rect.left, newTop, newW))
+      .then(() => this.moveWindowsTo(newLeft, newTop, newW))
       .then(() => {
-        PetSettingsStore.rememberPosition(rect.left, newTop);
-        this.runPage(`window.petSyncPos && window.petSyncPos(${rect.left},${newTop});`);
-        hilog.info(DOMAIN, TAG, 'window resized to %{public}dx%{public}d (scale %{public}s)',
-          newW, newH, s.scale.toFixed(2));
+        PetSettingsStore.rememberPosition(newLeft, newTop);
+        this.runPage(`window.petSyncPos && window.petSyncPos(${newLeft},${newTop});`);
+        this.scheduleHitWindowSync();
+        hilog.info(DOMAIN, TAG,
+          'window resized to %{public}dx%{public}d (screenScale %{public}s, scale %{public}s)',
+          newW, newH, screenScale.toFixed(2), s.scale.toFixed(2));
       })
       .catch((e: BusinessError) => {
         hilog.error(DOMAIN, TAG, 'resize for scale failed: %{public}s', e.message);
@@ -507,22 +544,25 @@ struct FloatPet {
       return;
     }
     const rect = win.getWindowProperties().windowRect;
-    let screenW = 1920;
-    let screenH = 1080;
-    try {
-      const d = display.getDefaultDisplaySync();
-      screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
-      screenH = d.availableHeight > 0 ? d.availableHeight : d.height;
-    } catch (e) {
-      const err = e as BusinessError;
-      hilog.warn(DOMAIN, TAG, 'home display read failed: %{public}s', err.message);
-    }
-    const x = Math.max(24, screenW - rect.width - 48);
-    const y = Math.max(0, screenH - rect.height - 24);
+    const screen = getWallpaperSize();
+    this.screenW = screen[0];
+    this.screenH = screen[1];
+    const bounded = clampPetWindow(
+      this.screenW - rect.width - 48,
+      this.screenH - rect.height - 24,
+      rect.width,
+      rect.height,
+      this.screenW,
+      this.screenH,
+      this.contentInsets
+    );
+    const x = bounded[0];
+    const y = bounded[1];
     this.moveWindowsTo(x, y, rect.width)
       .then(() => {
         PetSettingsStore.rememberPosition(x, y);
         this.runPage(`window.petSyncPos && window.petSyncPos(${x},${y});`);
+        this.scheduleHitWindowSync();
       })
       .catch((e: BusinessError) => {
         hilog.warn(DOMAIN, TAG, 'go home failed: %{public}s', e.message);
@@ -538,6 +578,8 @@ struct FloatPet {
     try {
       const d = display.getDefaultDisplaySync();
       this.density = d.densityPixels > 0 ? d.densityPixels : 1;
+      this.screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
+      this.screenH = d.availableHeight > 0 ? d.availableHeight : d.height;
     } catch (e) {
       const err = e as BusinessError;
       hilog.warn(DOMAIN, TAG, 'read density failed: %{public}s', err.message);
@@ -625,6 +667,10 @@ struct FloatPet {
       clearInterval(this.whisperTimer);
       this.whisperTimer = -1;
     }
+    if (this.hitSyncTimer !== -1) {
+      clearTimeout(this.hitSyncTimer);
+      this.hitSyncTimer = -1;
+    }
   }
 
   /**
@@ -648,9 +694,18 @@ struct FloatPet {
         return;
       }
       PetBridge.pendingMove = null;
-      const x = Math.round(target[0]);
-      const y = Math.round(target[1]);
       const rect = win.getWindowProperties().windowRect;
+      const bounded = clampPetWindow(
+        target[0],
+        target[1],
+        rect.width,
+        rect.height,
+        this.screenW,
+        this.screenH,
+        this.contentInsets
+      );
+      const x = bounded[0];
+      const y = bounded[1];
       if (x === rect.left && y === rect.top) {
         return;
       }
@@ -678,6 +733,7 @@ struct FloatPet {
         .finally(() => {
           this.moveBusy = false;
         });
+      this.scheduleHitWindowSync();
     }, 16);
   }
 
@@ -698,6 +754,7 @@ struct FloatPet {
       this.whisperPrompt = cfg.whisperPrompt ?? '';
       this.memeDescriptions = cfg.memeDescriptions ?? {};
       this.menuGroups = buildMenu(cfg);
+      this.contentInsets = PetPacks.loadContentInsets(ctx, pack);
       hilog.info(DOMAIN, TAG, 'pack %{public}s menu groups=%{public}d',
         pack, this.menuGroups.length);
       // 压成单行再注入，避免换行在 runJavaScript 里出问题
@@ -738,7 +795,8 @@ struct FloatPet {
     }
     const cfg = `Object.assign(${this.pendingConfig},{stableMotion:${this.stableMotion},` +
       `originX:${originX},originY:${originY},` +
-      `screenW:${screenW},screenH:${screenH},windowW:${windowW},windowH:${windowH}})`;
+      `screenW:${screenW},screenH:${screenH},windowW:${windowW},windowH:${windowH},` +
+      `contentInsets:${JSON.stringify(this.contentInsets)}})`;
     this.controller.runJavaScript(`window.petPackSwitch && window.petPackSwitch(${cfg});`)
       .then(() => {
         // 换包后重新推一次设置（透明度/碎碎念等页面状态）
@@ -798,7 +856,8 @@ struct FloatPet {
     const cfg = `Object.assign(${this.pendingConfig},{stableMotion:${this.stableMotion},` +
       `originX:${originX},originY:${originY},` +
       `screenW:${screenW},screenH:${screenH},windowW:${rect ? rect.width : 0},` +
-      `windowH:${rect ? rect.height : 0}})`;
+      `windowH:${rect ? rect.height : 0},` +
+      `contentInsets:${JSON.stringify(this.contentInsets)}})`;
     this.controller.runJavaScript(`window.petBoot && window.petBoot(${cfg});`)
       .then(() => {
         // 启动早期页面还没加载时 applySettings 只能改窗口，设置值本身没进页面。
@@ -867,6 +926,48 @@ struct FloatPet {
       .catch((e: BusinessError) => {
         hilog.warn(DOMAIN, TAG, 'float window live move failed: %{public}s', e.message);
       });
+  }
+
+  /**
+   * 拖拽时为了不让触摸目标中断，只移动画面窗；抬手后必须把点击区补到同一位置。
+   * 否则宠物被拖到远处后画面还在，点击却仍落在旧位置。
+   */
+  private syncHitWindowAfterDrag(): void {
+    const win = FloatWin.get();
+    const hit = HitWin.get();
+    if (!win || !hit) {
+      return;
+    }
+    const rect = win.getWindowProperties().windowRect;
+    const s = rect.width / WIN_W;
+    hit.moveWindowToAsync(Math.round(rect.left + HIT_X * s), rect.top)
+      .catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'sync hit window after drag failed: %{public}s', e.message);
+      });
+    this.winX = rect.left;
+    this.winY = rect.top;
+    PetSettingsStore.rememberPosition(rect.left, rect.top);
+  }
+
+  /** 连续移动时不断推迟，等真正停下来后再校准一次点击区 */
+  private scheduleHitWindowSync(): void {
+    if (this.hitSyncTimer !== -1) {
+      clearTimeout(this.hitSyncTimer);
+    }
+    this.hitSyncTimer = setTimeout(() => {
+      this.hitSyncTimer = -1;
+      const win = FloatWin.get();
+      const hit = HitWin.get();
+      if (!win || !hit) {
+        return;
+      }
+      const rect = win.getWindowProperties().windowRect;
+      const s = rect.width / WIN_W;
+      hit.moveWindowToAsync(Math.round(rect.left + HIT_X * s), rect.top)
+        .catch((e: BusinessError) => {
+          hilog.warn(DOMAIN, TAG, 'settle hit window failed: %{public}s', e.message);
+        });
+    }, 140);
   }
 
   /** 点击区窗口的事件轮询：16ms 一次，只读内存队列 */
@@ -967,6 +1068,9 @@ struct FloatPet {
       if (wasDragging) {
         // 松手：页面据此决定是甩出去还是原地放下
         this.callPage('dragEnd()');
+        // 拖拽阶段点击区没有跟着画面窗走，抬手后立即把两者重新对齐。
+        setTimeout(() => this.syncHitWindowAfterDrag(), 16);
+        this.scheduleHitWindowSync();
       } else if (!wasLong && kind === 'up') {
         this.handleTap(sx, sy, rect.left, rect.top, rect.width, rect.height);
       }
