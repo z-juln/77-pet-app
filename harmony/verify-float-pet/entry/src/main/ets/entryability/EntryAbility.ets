@@ -60,18 +60,51 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
-    // 主窗口只作为 Ability 的载体存在，加载完立刻最小化，把桌面让给悬浮窗
+    // 主窗口只作为 Ability 的载体存在。它无法被销毁，所以加载一个透明的空页面，
+    // 等窗口状态正常后再缩成透明的小点并最小化 —— 从任务栏恢复也不会弹出任何界面。
+    const main = windowStage.getMainWindowSync();
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         hilog.error(DOMAIN, TAG, 'loadContent failed: %{public}s', JSON.stringify(err));
         return;
       }
-      windowStage.getMainWindow()
-        .then((main) => main.minimize())
+      this.hideMainWindow(main)
+        .then(() => main.minimize())
         .then(() => this.createFloatWindow())
         .catch((e: BusinessError) => {
-          hilog.error(DOMAIN, TAG, 'getMainWindow failed: %{public}s', JSON.stringify(e));
+          hilog.error(DOMAIN, TAG, 'minimize main window failed: %{public}s', JSON.stringify(e));
+          // 最小化失败也要把悬浮窗建起来，主窗口本身已经是不可见的小点
+          this.createFloatWindow();
         });
+    });
+  }
+
+  /** 把主窗口做成不可见、不可点、不可聚焦的 1x1 透明窗口 */
+  private hideMainWindow(main: window.Window): Promise<void> {
+    try {
+      main.setWindowBackgroundColor('#00000000');
+      main.setWindowDecorVisible(false);
+      main.setWindowShadowRadius(0);
+      main.setWindowCornerRadius(0);
+    } catch (e) {
+      const err = e as BusinessError;
+      hilog.warn(DOMAIN, TAG, 'style main window failed: %{public}s', err.message);
+    }
+    return Promise.all([
+      main.setWindowTouchable(false).catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'untouchable main window failed: %{public}s', e.message);
+      }),
+      main.setWindowFocusable(false).catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'unfocusable main window failed: %{public}s', e.message);
+      }),
+      main.resize(1, 1).catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'resize main window failed: %{public}s', e.message);
+      }),
+      main.moveWindowTo(-10000, -10000).catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'move main window failed: %{public}s', e.message);
+      })
+    ]).then(() => {
+      // Promise.all 的元素已经各自吞掉错误，这里只保证顺序
     });
   }
 
