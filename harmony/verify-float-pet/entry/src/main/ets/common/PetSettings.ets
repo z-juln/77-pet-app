@@ -23,6 +23,11 @@ const IS_EMULATOR = deviceInfo.productModel === 'emulator';
  * 之后用户主动切换仍会正常保留。
  */
 const EMULATOR_MOTION_MIGRATED = 'stableMotionEmulatorMigrated';
+/**
+ * 旧版为了让模拟器不闪，强制把待机定格了；现在自动动作已经能在模拟器上正常跑，
+ * 所以升级时再迁回一次「会自动做动作」。之后用户自己切换的开关仍会保留。
+ */
+const MOTION_AUTO_MIGRATED = 'stableMotionAutoMotionMigrated';
 
 /** 设置面板窗口尺寸 */
 export const SETTINGS_W = 340;
@@ -65,7 +70,7 @@ export const DEFAULT_SETTINGS: PetSettings = {
   scale: 1,
   opacity: 1,
   moveWeight: 5,
-  stableMotion: IS_EMULATOR,
+  stableMotion: false,
   whisperOn: true,
   whisperSec: 300,
   llmOn: false,
@@ -144,19 +149,20 @@ export class PetSettingsStore {
    */
   private static emulatorStableMotion(s: preferences.Preferences): boolean {
     const saved = (s.getSync('stableMotion', DEFAULT_SETTINGS.stableMotion) as boolean) === true;
-    if (!IS_EMULATOR || (s.getSync(EMULATOR_MOTION_MIGRATED, false) as boolean) === true) {
+    if (!IS_EMULATOR || (s.getSync(MOTION_AUTO_MIGRATED, false) as boolean) === true) {
       return saved;
     }
     try {
-      s.putSync('stableMotion', true);
+      s.putSync('stableMotion', false);
       s.putSync(EMULATOR_MOTION_MIGRATED, true);
+      s.putSync(MOTION_AUTO_MIGRATED, true);
       s.flush();
-      hilog.info(DOMAIN, TAG, 'emulator stableMotion migrated to true');
+      hilog.info(DOMAIN, TAG, 'emulator stableMotion migrated to false for auto motion');
     } catch (e) {
       const err = e as Error;
       hilog.warn(DOMAIN, TAG, 'emulator stableMotion migration failed: %{public}s', err.message);
     }
-    return true;
+    return false;
   }
 
   /** 一份全新的默认设置（ArkTS 不支持对象展开，手动逐字段构造） */
@@ -190,6 +196,7 @@ export class PetSettingsStore {
     s.putSync('stableMotion', next.stableMotion);
     if (IS_EMULATOR) {
       s.putSync(EMULATOR_MOTION_MIGRATED, true);
+      s.putSync(MOTION_AUTO_MIGRATED, true);
     }
     s.putSync('whisperOn', next.whisperOn);
     s.putSync('whisperSec', next.whisperSec);

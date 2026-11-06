@@ -529,6 +529,8 @@
       /** 设置里的碎碎念开关与周期覆盖（true / 0 = 用配置里的值） */
       let whisperEnabled = true;
       let whisperIntervalSec = 0;
+      /** 启动后先很快说一句，让用户知道自动碎碎念是活的；之后按配置周期走 */
+      let whisperFirstDue = true;
 
       /** 到点要一句：优先让 ArkTS 侧决定走模型还是本地文案 */
       function requestWhisper(force) {
@@ -629,15 +631,18 @@
         if (!W || !W.enabled || !whisperEnabled) return;
         const configured = whisperIntervalSec > 0 ? whisperIntervalSec : (W.intervalSec || 300);
         const base = Math.max(30, configured) * 1000;
-        // 0.7~1.3 倍抖动
-        const wait = base * (0.7 + Math.random() * 0.6);
+        // 第一次 8~12 秒内开口，之后 0.85~1.15 倍抖动，避免所有宠物同一秒说话
+        const wait = whisperFirstDue
+          ? 8000 + Math.random() * 4000
+          : base * (0.85 + Math.random() * 0.3);
         whisperTimer = setTimeout(() => {
           whisperTimer = 0;
+          whisperFirstDue = false;
           // 拖拽中不打扰用户
           if (!dragActive) requestWhisper(false);
           scheduleWhisper();
         }, wait);
-        log('next whisper in ' + Math.round(wait / 1000) + 's');
+        log('next whisper in ' + Math.round(wait / 1000) + 's' + (whisperFirstDue ? ' (first)' : ''));
       }
 
       /** 气泡区高度：窗口比视频画布高出的部分，留给头顶气泡。ArkTS 侧建窗时用同一数值 */
@@ -832,7 +837,8 @@
         } else {
           next = pickCategoryAction(currentName);
         }
-        switchTo(next, false);
+        // 与 Mac 版一致：每段动画完整播一遍再进入下一段，转向动画播完才会真的翻面
+        switchTo(next, true);
       }
 
       // ---------- 漫游：窗口位移 ----------
@@ -1218,8 +1224,11 @@
           baseY = bounded.y;
           followPos = { x: baseX, y: baseY };
         }
-        if (typeof s.whisperOn === 'boolean') {
+        let whisperConfigChanged = false;
+        if (typeof s.whisperOn === 'boolean' && s.whisperOn !== whisperEnabled) {
+          const wasEnabled = whisperEnabled;
           whisperEnabled = s.whisperOn;
+          whisperConfigChanged = true;
           if (!s.whisperOn) {
             // 关掉时把正在显示的也收起来，不留一句「已关闭但仍挂着」的话
             hideBubble();
@@ -1227,13 +1236,17 @@
               clearTimeout(whisperTimer);
               whisperTimer = 0;
             }
+          } else if (!wasEnabled) {
+            // 重新打开时先很快说一句，而不是再等满一个周期
+            whisperFirstDue = true;
           }
         }
-        if (typeof s.whisperSec === 'number') {
+        if (typeof s.whisperSec === 'number' && Math.max(30, s.whisperSec) !== whisperIntervalSec) {
           whisperIntervalSec = Math.max(30, s.whisperSec);
+          whisperConfigChanged = true;
         }
         // 周期或开关变了就重排下一次
-        if (typeof s.whisperOn === 'boolean' || typeof s.whisperSec === 'number') {
+        if (whisperConfigChanged) {
           scheduleWhisper();
         }
         log('settings applied: ' + JSON.stringify(s));

@@ -205,7 +205,7 @@ struct SettingsPage {
               Text('稳定待机')
                 .fontSize(14)
                 .fontColor('#1f1f1f')
-              Text('静止时定格，避免模拟器整屏闪烁；真机建议关闭')
+              Text('开启后停在当前画面，不自动做动作；想省电时再用')
                 .fontSize(11)
                 .fontColor('#8a8a8a')
                 .margin({ top: 2 })
