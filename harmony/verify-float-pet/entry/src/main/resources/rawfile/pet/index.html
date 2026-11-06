@@ -865,11 +865,13 @@
         const dist = m.minDist + Math.random() * (m.maxDist - m.minDist);
         const targetX = startX + dir * dist * SCREEN_SCALE * PET_SCALE;
 
-        // 边界：整个窗口都必须留在壁纸可用区域内
+        // 边界：只约束可见角色，透明留白可以移出屏幕
         const b = wallpaperBounds();
         const margin = (m.margin || 20) * SCREEN_SCALE;
-        const minX = Math.min(b.maxX, Math.max(b.minX, margin));
-        const maxX = b.maxX;
+        // b 是「可见角色」的边界，可能已经是负数；margin 要加在它上面，
+        // 不能再拿屏幕坐标的 0 当起点，否则靠边时会白丢一大段可走范围。
+        const minX = Math.min(b.maxX, b.minX + margin);
+        const maxX = Math.max(minX, b.maxX - margin);
         if (targetX < minX || targetX > maxX) {
           log('roam rejected: ' + m.name + ' target=' + Math.round(targetX) +
               ' outside [' + Math.round(minX) + ',' + Math.round(maxX) + ']');
