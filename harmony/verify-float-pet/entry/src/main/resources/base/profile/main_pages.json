@@ -1,0 +1,9 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/FloatPet",
+    "pages/HitArea",
+    "pages/PetMenuPage",
+    "pages/SettingsPage"
+  ]
+}

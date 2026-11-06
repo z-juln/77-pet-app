@@ -1,0 +1,10 @@
+{
+  "app": {
+    "bundleName": "app.pet77.multiplatform",
+    "vendor": "77pet",
+    "versionCode": 1000000,
+    "versionName": "0.0.1",
+    "icon": "$media:layered_image",
+    "label": "$string:app_name"
+  }
+}

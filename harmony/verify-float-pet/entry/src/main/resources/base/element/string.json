@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "77 Pet 鸿蒙桌面桌宠"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "在桌面上显示可拖拽、可互动的宠物"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "77 Pet"
+    },
+    {
+      "name": "reason_float_window",
+      "value": "在桌面上显示可拖拽的桌宠悬浮窗"
+    }
+  ]
+}
