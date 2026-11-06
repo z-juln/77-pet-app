@@ -41,6 +41,11 @@ export const DEFAULT_PET_CONTENT_INSETS: PetContentInsets = {
 /** Mac 版默认宠物画布宽度与参考屏幕宽度，用于换算鸿蒙上的默认相对大小 */
 const MAC_PET_W = 462;
 const MAC_SCREEN_W = 1512;
+/**
+ * 手机是窄长屏：如果只按宽度等比换算，宠物宽度占比虽然和 Mac 一样，
+ * 但放到两千多像素高的屏幕上会显得特别小。竖屏额外放大一档。
+ */
+const PORTRAIT_PET_BOOST = 2;
 
 /**
  * 鸿蒙默认宠物大小：按 Mac 版「宠物宽 / 屏幕宽」的比例换算。
@@ -50,16 +55,19 @@ const MAC_SCREEN_W = 1512;
  */
 export function petScreenScale(): number {
   let screenW = MAC_SCREEN_W;
+  let screenH = 982;
   try {
     const d = display.getDefaultDisplaySync();
     screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
+    screenH = d.availableHeight > 0 ? d.availableHeight : d.height;
   } catch (e) {
     const err = e as Error;
     hilog.warn(DOMAIN, TAG, 'petScreenScale display read failed: %{public}s', err.message);
   }
-  const scale = screenW * MAC_PET_W / MAC_SCREEN_W / WIN_W;
+  const portraitBoost = screenH > screenW * 1.25 ? PORTRAIT_PET_BOOST : 1;
+  const scale = screenW * MAC_PET_W / MAC_SCREEN_W / WIN_W * portraitBoost;
   // 兜底范围只防异常分辨率把窗口撑到不可用，正常设备不会碰到上下限
-  return Math.min(Math.max(scale, 0.5), 4);
+  return Math.min(Math.max(scale, 0.5), 6);
 }
 
 /** 当前壁纸可用区域；已排除底部栏等系统占位。 */
