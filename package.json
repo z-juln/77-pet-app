@@ -14,7 +14,9 @@
     "predist": "npm run build:core",
     "dist": "electron-builder --mac dmg zip --arm64 --x64 && electron-builder --win nsis --x64",
     "dist:mac": "electron-builder --mac dmg zip --arm64 --x64",
-    "dist:win": "electron-builder --win nsis --x64"
+    "dist:win": "electron-builder --win nsis --x64",
+    "web:build": "node scripts/build-browser-extension.mjs",
+    "web:pack": "npm run web:build && cd browser-extension/dist && zip -qr ../77.Pet-${npm_package_version}-web-extension.zip ."
   },
   "build": {
     "appId": "app.77pet.desktop",

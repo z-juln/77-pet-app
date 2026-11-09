@@ -4,3 +4,5 @@ config/settings.json
 dist/
 out/
 vendor/pet-packs/
+browser-extension/dist/
+browser-extension/*.zip

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>77 Pet 网页桌宠</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icons/icon48.png" alt="" />
+        <div>
+          <h1>77 Pet</h1>
+          <p>网页桌宠</p>
+        </div>
+      </header>
+
+      <section class="switch-row">
+        <label for="enabled">在所有网页显示</label>
+        <input id="enabled" type="checkbox" />
+      </section>
+
+      <button id="siteToggle" class="wide secondary" type="button">在此网站隐藏</button>
+
+      <section class="field">
+        <label for="pack">宠物</label>
+        <select id="pack"></select>
+      </section>
+
+      <section class="field">
+        <div class="field-head">
+          <label for="scale">大小</label>
+          <output id="scaleValue">100%</output>
+        </div>
+        <input id="scale" type="range" min="60" max="140" step="5" />
+      </section>
+
+      <section class="field">
+        <div class="field-head">
+          <label for="opacity">透明度</label>
+          <output id="opacityValue">100%</output>
+        </div>
+        <input id="opacity" type="range" min="30" max="100" step="5" />
+      </section>
+
+      <section class="switch-row">
+        <label for="whisper">自动碎碎念</label>
+        <input id="whisper" type="checkbox" />
+      </section>
+
+      <div class="actions">
+        <button id="say" class="secondary" type="button">说一句</button>
+        <button id="home" class="secondary" type="button">回右下角</button>
+      </div>
+
+      <p id="status" class="status"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

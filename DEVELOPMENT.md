@@ -14,6 +14,7 @@
 | macOS Intel | `77.Pet-<版本号>.dmg` |
 | Windows x64 | `77.Pet.Setup.<版本号>.exe` |
 | HarmonyOS | `77.Pet-<版本号>-harmony-unsigned.hap` |
+| Chrome / Edge | `77.Pet-<版本号>-web-extension.zip` |
 
 ## 发布步骤
 
@@ -27,6 +28,7 @@
 
    ```bash
    npm run dist
+   npm run web:pack
    cd harmony/verify-float-pet
    ./run.sh release
    ```
@@ -42,7 +44,7 @@
    ```
 
 5. 创建 GitHub Release 时，一次上传全部平台安装包。不要先发布一个平台，之后再补。
-6. 发布后检查 Release 资产列表，确认四个安装包都存在、文件名含正确版本号、上传状态已完成。
+6. 发布后检查 Release 资产列表，确认五个安装包都存在、文件名含正确版本号、上传状态已完成。
 7. 确认全部资产上传完成，再通知用户更新。
 
 ## 禁止事项

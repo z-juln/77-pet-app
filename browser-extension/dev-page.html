@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>77 Pet 网页桌宠测试页</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        color: #1f2937;
+        background: #eef2f8;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        padding: 56px;
+        background:
+          radial-gradient(circle at 85% 12%, rgba(106, 142, 255, 0.22), transparent 34%),
+          linear-gradient(145deg, #f8fafc, #e8eef9);
+      }
+
+      main {
+        max-width: 720px;
+        padding: 36px;
+        border: 1px solid rgba(50, 70, 110, 0.12);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: 0 18px 60px rgba(44, 62, 100, 0.12);
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      p {
+        line-height: 1.8;
+      }
+
+      button {
+        padding: 10px 16px;
+        border: 0;
+        border-radius: 10px;
+        background: #4d7cff;
+        color: white;
+        font: inherit;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>77 Pet 网页桌宠测试页</h1>
+      <p>右下角应该出现桌宠。可以拖动、快速甩出、单击、右键或长按，也可以点头顶气泡。</p>
+      <p>这个按钮用来确认桌宠之外的网页区域仍然可以正常操作。</p>
+      <button id="counter" type="button">点击计数：0</button>
+    </main>
+    <script>
+      let count = 0;
+      document.getElementById('counter').addEventListener('click', (event) => {
+        count += 1;
+        event.currentTarget.textContent = '点击计数：' + count;
+      });
+    </script>
+  </body>
+</html>
