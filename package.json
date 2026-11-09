@@ -12,8 +12,8 @@
     "test": "node --test src/*.test.mjs",
     "pack:pets": "node src/pack-pets.mjs",
     "predist": "npm run build:core",
-    "dist": "electron-builder --mac dmg zip --arm64 --win nsis --x64",
-    "dist:mac": "electron-builder --mac dmg zip --arm64",
+    "dist": "electron-builder --mac dmg zip --arm64 --x64 && electron-builder --win nsis --x64",
+    "dist:mac": "electron-builder --mac dmg zip --arm64 --x64",
     "dist:win": "electron-builder --win nsis --x64"
   },
   "build": {
