@@ -1,5 +1,6 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { display } from '@kit.ArkUI';
+import { deviceInfo } from '@kit.BasicServicesKit';
 
 const DOMAIN = 0x7700;
 const TAG = 'Pet77';
@@ -43,29 +44,32 @@ const MAC_PET_W = 462;
 const MAC_SCREEN_W = 1512;
 /**
  * 手机是窄长屏：如果只按宽度等比换算，宠物宽度占比虽然和 Mac 一样，
- * 但放到两千多像素高的屏幕上会显得特别小。竖屏额外放大一档。
+ * 但放到两千多像素高的屏幕上会显得特别小，所以手机按短边额外放大一档。
  */
-const PORTRAIT_PET_BOOST = 2;
+const PHONE_PET_BOOST = 2;
 
 /**
  * 鸿蒙默认宠物大小：按 Mac 版「宠物宽 / 屏幕宽」的比例换算。
  *
- * 设置里的 scale 仍是相对值（1 = 这个默认大小）。这样不同分辨率、横竖屏
- * 都能得到接近 Mac 版的视觉占比，而不是在每台设备上固定 384 像素。
+ * 设置里的 scale 仍是相对值（1 = 这个默认大小）。手机始终按短边换算，
+ * 这样横竖屏切换时宠物不会突然放大或缩小；电脑仍按屏幕宽度换算。
  */
 export function petScreenScale(): number {
   let screenW = MAC_SCREEN_W;
   let screenH = 982;
   try {
     const d = display.getDefaultDisplaySync();
-    screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
-    screenH = d.availableHeight > 0 ? d.availableHeight : d.height;
+    // 用完整屏幕尺寸而不是可用区域：横屏底部栏占用不同，用可用高度会让宠物缩一点。
+    screenW = d.width > 0 ? d.width : d.availableWidth;
+    screenH = d.height > 0 ? d.height : d.availableHeight;
   } catch (e) {
     const err = e as Error;
     hilog.warn(DOMAIN, TAG, 'petScreenScale display read failed: %{public}s', err.message);
   }
-  const portraitBoost = screenH > screenW * 1.25 ? PORTRAIT_PET_BOOST : 1;
-  const scale = screenW * MAC_PET_W / MAC_SCREEN_W / WIN_W * portraitBoost;
+  const baseWidth = deviceInfo.deviceType === 'phone'
+    ? Math.min(screenW, screenH) * PHONE_PET_BOOST
+    : screenW;
+  const scale = baseWidth * MAC_PET_W / MAC_SCREEN_W / WIN_W;
   // 兜底范围只防异常分辨率把窗口撑到不可用，正常设备不会碰到上下限
   return Math.min(Math.max(scale, 0.5), 6);
 }

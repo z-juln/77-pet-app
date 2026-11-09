@@ -1163,6 +1163,25 @@
         stopDragFollow();
       };
 
+      /** 横竖屏切换：更新屏幕边界，并停在旋转后的新位置 */
+      window.petScreenChanged = (screenW, screenH, windowW, windowH, x, y) => {
+        if (typeof screenW === 'number' && screenW > 0) SCREEN_W = screenW;
+        if (typeof screenH === 'number' && screenH > 0) SCREEN_H = screenH;
+        if (typeof windowW === 'number' && windowW > 0) WINDOW_W = windowW;
+        if (typeof windowH === 'number' && windowH > 0) WINDOW_H = windowH;
+        const bounded = clampWindowPoint(x, y);
+        baseX = bounded.x;
+        baseY = bounded.y;
+        followPos = { x: bounded.x, y: bounded.y };
+        stopRoam();
+        stopThrow();
+        stopDragFollow();
+        fitViewport();
+        log('screen changed: screen=' + SCREEN_W + 'x' + SCREEN_H +
+            ' window=' + WINDOW_W + 'x' + WINDOW_H +
+            ' pos=' + baseX + ',' + baseY);
+      };
+
       /** 手动触发一次碎碎念（设置/菜单里可以调） */
       window.petWhisper = () => {
         requestWhisper(true);

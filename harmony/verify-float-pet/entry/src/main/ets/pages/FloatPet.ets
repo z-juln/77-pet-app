@@ -130,6 +130,25 @@ struct FloatPet {
   private lastTouchY: number = 0;
   /** 设置项「稳定待机」；模拟器默认开启，真机默认关闭 */
   private stableMotion: boolean = false;
+  /** 旋转时等待系统把新的屏幕尺寸准备好，最多重试几次 */
+  private displayTimer: number = -1;
+  private displayRetry: number = 0;
+  private displayListening: boolean = false;
+  /** 旋转后短暂忽略页面里按旧屏幕算出的移动目标，避免宠物先跳一下 */
+  private screenSettleUntil: number = 0;
+  /** 兜底检查屏幕尺寸，防止个别设备漏发旋转通知 */
+  private lastScreenCheck: number = 0;
+  /**
+   * 宠物窗口中心在屏幕中的归一化位置。
+   * 旋转后按这个比例落到新屏幕上，用户看到的相对位置不会突然跑到别的角落。
+   */
+  private anchorX: number = 0.5;
+  private anchorY: number = 0.5;
+  private anchorValid: boolean = false;
+  private displayChangeCallback: (displayId: number) => void = (_displayId: number) => {
+    this.displayRetry = 0;
+    this.scheduleDisplayRelayout();
+  };
 
   /**
    * 打开右键菜单。
@@ -344,6 +363,14 @@ struct FloatPet {
       return;
     }
     this.settingsTimer = setInterval(() => {
+      const now = Date.now();
+      if (now - this.lastScreenCheck >= 500) {
+        this.lastScreenCheck = now;
+        const screen = getWallpaperSize();
+        if (screen[0] !== this.screenW || screen[1] !== this.screenH) {
+          this.relayoutForScreen();
+        }
+      }
       if (!PetSettingsStore.pendingApply) {
         return;
       }
@@ -511,7 +538,7 @@ struct FloatPet {
         }
         return Promise.resolve();
       })
-      .then(() => this.moveWindowsTo(newLeft, newTop, newW))
+      .then(() => this.moveWindowsTo(newLeft, newTop, newW, newH))
       .then(() => {
         PetSettingsStore.rememberPosition(newLeft, newTop);
         this.runPage(`window.petSyncPos && window.petSyncPos(${newLeft},${newTop});`);
@@ -558,7 +585,7 @@ struct FloatPet {
     );
     const x = bounded[0];
     const y = bounded[1];
-    this.moveWindowsTo(x, y, rect.width)
+    this.moveWindowsTo(x, y, rect.width, rect.height)
       .then(() => {
         PetSettingsStore.rememberPosition(x, y);
         this.runPage(`window.petSyncPos && window.petSyncPos(${x},${y});`);
@@ -566,6 +593,117 @@ struct FloatPet {
       })
       .catch((e: BusinessError) => {
         hilog.warn(DOMAIN, TAG, 'go home failed: %{public}s', e.message);
+      });
+  }
+
+  private rememberPetAnchor(x: number, y: number, winW: number, winH: number): void {
+    if (this.screenW <= 0 || this.screenH <= 0 || winW <= 0 || winH <= 0) {
+      return;
+    }
+    this.anchorX = (x + winW / 2) / this.screenW;
+    this.anchorY = (y + winH / 2) / this.screenH;
+    this.anchorValid = true;
+  }
+
+  private scheduleDisplayRelayout(): void {
+    if (this.displayTimer !== -1) {
+      clearTimeout(this.displayTimer);
+    }
+    this.displayTimer = setTimeout(() => {
+      this.displayTimer = -1;
+      this.relayoutForScreen();
+    }, 80);
+  }
+
+  private retryDisplayRelayout(): void {
+    if (this.displayRetry >= 6) {
+      return;
+    }
+    this.displayRetry++;
+    this.scheduleDisplayRelayout();
+  }
+
+  /**
+   * 横竖屏切换后，把宠物从旧屏幕的相对位置搬到新屏幕。
+   *
+   * 系统旋转时窗口坐标空间会整体变化，不能原样沿用旧 left/top：
+   * 所以先记住「宠物中心占屏幕的比例」，再用新屏幕尺寸换回窗口坐标。
+   * 同步点区位置，并把新边界告诉页面，自动走动和拖拽才不会继续使用旧范围。
+   */
+  private relayoutForScreen(): void {
+    const win = FloatWin.get();
+    if (!win) {
+      return;
+    }
+    let screenW = 0;
+    let screenH = 0;
+    try {
+      const d = display.getDefaultDisplaySync();
+      screenW = d.availableWidth > 0 ? d.availableWidth : d.width;
+      screenH = d.availableHeight > 0 ? d.availableHeight : d.height;
+    } catch (e) {
+      const err = e as BusinessError;
+      hilog.warn(DOMAIN, TAG, 'rotation read display failed: %{public}s', err.message);
+      return;
+    }
+    if (screenW <= 0 || screenH <= 0) {
+      this.retryDisplayRelayout();
+      return;
+    }
+    if (screenW === this.screenW && screenH === this.screenH) {
+      // display change 事件有时比尺寸更新早到，等系统真正完成旋转后再算。
+      this.retryDisplayRelayout();
+      return;
+    }
+    const rect = win.getWindowProperties().windowRect;
+    if (rect.width <= 0 || rect.height <= 0) {
+      this.retryDisplayRelayout();
+      return;
+    }
+
+    this.displayRetry = 0;
+    const oldScreenW = this.screenW;
+    const oldScreenH = this.screenH;
+    if (!this.anchorValid && oldScreenW > 0 && oldScreenH > 0) {
+      this.anchorX = (rect.left + rect.width / 2) / oldScreenW;
+      this.anchorY = (rect.top + rect.height / 2) / oldScreenH;
+      this.anchorValid = true;
+    }
+    const anchorX = Math.min(Math.max(this.anchorX, 0), 1);
+    const anchorY = Math.min(Math.max(this.anchorY, 0), 1);
+    this.screenW = screenW;
+    this.screenH = screenH;
+    this.screenSettleUntil = Date.now() + 300;
+    PetBridge.pendingMove = null;
+    const bounded = clampPetWindow(
+      anchorX * screenW - rect.width / 2,
+      anchorY * screenH - rect.height / 2,
+      rect.width,
+      rect.height,
+      screenW,
+      screenH,
+      this.contentInsets
+    );
+    const x = bounded[0];
+    const y = bounded[1];
+    this.rememberPetAnchor(x, y, rect.width, rect.height);
+    this.closeMenu();
+    this.closeSettings();
+    this.cancelLongPress();
+    this.dragging = false;
+    this.dragConfirmed = false;
+    this.moveWindowsTo(x, y, rect.width, rect.height)
+      .then(() => {
+        PetSettingsStore.rememberPosition(x, y);
+        this.runPage(`window.petScreenChanged && window.petScreenChanged(` +
+          `${screenW},${screenH},${rect.width},${rect.height},${x},${y});`);
+        this.scheduleHitWindowSync(3);
+        hilog.info(DOMAIN, TAG,
+          'screen rotated %{public}dx%{public}d -> %{public}dx%{public}d, pet moved to %{public}d,%{public}d',
+          oldScreenW, oldScreenH, screenW, screenH, x, y);
+      })
+      .catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'rotation reposition failed: %{public}s', e.message);
       });
   }
 
@@ -587,6 +725,16 @@ struct FloatPet {
     const rect = win.getWindowProperties().windowRect;
     this.winX = rect.left;
     this.winY = rect.top;
+    this.rememberPetAnchor(rect.left, rect.top, rect.width, rect.height);
+    if (!this.displayListening) {
+      try {
+        display.on('change', this.displayChangeCallback);
+        this.displayListening = true;
+      } catch (e) {
+        const err = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, 'subscribe display change failed: %{public}s', err.message);
+      }
+    }
     this.startMoveLoop();
     this.startInputPoll();
     this.startSettingsPoll();
@@ -647,6 +795,19 @@ struct FloatPet {
 
   aboutToDisappear(): void {
     this.cancelLongPress();
+    if (this.displayListening) {
+      try {
+        display.off('change', this.displayChangeCallback);
+      } catch (e) {
+        const err = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, 'unsubscribe display change failed: %{public}s', err.message);
+      }
+      this.displayListening = false;
+    }
+    if (this.displayTimer !== -1) {
+      clearTimeout(this.displayTimer);
+      this.displayTimer = -1;
+    }
     if (this.inputTimer !== -1) {
       clearInterval(this.inputTimer);
       this.inputTimer = -1;
@@ -685,6 +846,10 @@ struct FloatPet {
       return;
     }
     this.moveTimer = setInterval(() => {
+      if (Date.now() < this.screenSettleUntil) {
+        PetBridge.pendingMove = null;
+        return;
+      }
       const target = PetBridge.pendingMove;
       if (!target) {
         return;
@@ -714,7 +879,7 @@ struct FloatPet {
       if (this.dragConfirmed) {
         this.winX = x;
         this.winY = y;
-        this.moveWindowsToLive(x, y, rect.width);
+        this.moveWindowsToLive(x, y, rect.width, rect.height);
         return;
       }
       if (this.moveBusy) {
@@ -723,7 +888,7 @@ struct FloatPet {
       this.moveBusy = true;
       this.winX = x;
       this.winY = y;
-      this.moveWindowsTo(x, y, rect.width)
+      this.moveWindowsTo(x, y, rect.width, rect.height)
         .then(() => {
           PetSettingsStore.rememberPosition(x, y);
         })
@@ -896,11 +1061,12 @@ struct FloatPet {
    * 两个窗保持固定的相对位置；点击区是不可见窗口，晚一帧无所谓，
    * 所以这里不 await 它，避免拖拽时多等一次窗口服务往返。
    */
-  private moveWindowsTo(x: number, y: number, windowW: number): Promise<void> {
+  private moveWindowsTo(x: number, y: number, windowW: number, windowH: number): Promise<void> {
     const win = FloatWin.get();
     if (!win) {
       return Promise.resolve();
     }
+    this.rememberPetAnchor(x, y, windowW, windowH);
     // 用调用方给的目标宽度算偏移：窗口刚 resize 完时 getWindowProperties
     // 可能还返回旧尺寸，直接读会算错点击区的位置。
     const s = windowW / WIN_W;
@@ -915,11 +1081,12 @@ struct FloatPet {
   }
 
   /** 拖拽专用：直接提交最新位置，不等待上一次移动结束 */
-  private moveWindowsToLive(x: number, y: number, windowW: number): void {
+  private moveWindowsToLive(x: number, y: number, windowW: number, windowH: number): void {
     const win = FloatWin.get();
     if (!win) {
       return;
     }
+    this.rememberPetAnchor(x, y, windowW, windowH);
     // 拖拽开始后触摸目标已经锁定在点击区上，指针离开点击区仍会继续收到
     // 移动和抬手事件；这段时间不再搬透明点击窗，减少一半窗口合成。
     win.moveWindowTo(x, y)
@@ -946,11 +1113,12 @@ struct FloatPet {
       });
     this.winX = rect.left;
     this.winY = rect.top;
+    this.rememberPetAnchor(rect.left, rect.top, rect.width, rect.height);
     PetSettingsStore.rememberPosition(rect.left, rect.top);
   }
 
   /** 连续移动时不断推迟，等真正停下来后再校准一次点击区 */
-  private scheduleHitWindowSync(): void {
+  private scheduleHitWindowSync(retries: number = 0): void {
     if (this.hitSyncTimer !== -1) {
       clearTimeout(this.hitSyncTimer);
     }
@@ -964,8 +1132,16 @@ struct FloatPet {
       const rect = win.getWindowProperties().windowRect;
       const s = rect.width / WIN_W;
       hit.moveWindowToAsync(Math.round(rect.left + HIT_X * s), rect.top)
+        .then(() => {
+          if (retries > 0) {
+            this.scheduleHitWindowSync(retries - 1);
+          }
+        })
         .catch((e: BusinessError) => {
           hilog.warn(DOMAIN, TAG, 'settle hit window failed: %{public}s', e.message);
+          if (retries > 0) {
+            this.scheduleHitWindowSync(retries - 1);
+          }
         });
     }, 140);
   }
