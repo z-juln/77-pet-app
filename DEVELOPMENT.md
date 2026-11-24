@@ -55,6 +55,7 @@
 5. 创建 GitHub Release 时，一次上传全部平台安装包。不要先发布一个平台，之后再补。
 6. 发布后检查 Release 资产列表，确认六个安装包都存在、文件名含正确版本号、上传状态已完成。
 7. 确认全部资产上传完成，再通知用户更新。
+8. （可选）同步到 Gitee Release：`https://gitee.com/juln/77-pet-app`。有私人令牌就尽量把同版本安装包也挂上去；本地令牌可放在仓库根目录 `.gitee-token`（已 gitignore，格式 `GITEE_ACCESS_TOKEN=...`）。没有 token 就跳过，不重要，GitHub Release 才是正式发布源。
 
 ## 禁止事项
 
@@ -62,7 +63,7 @@
 - 不要漏掉 BYD 安卓车机安装包。
 - 不要用不带平台安装包的空 Release 触发电脑端更新提醒。
 - 不要在 Release 资产未上传完成时对外宣布新版本。
-- 不要把本机签名配置、证书或私钥提交到仓库或上传到 Release。
+- 不要把本机签名配置、证书、私钥或 Gitee / GitHub token 提交到仓库或上传到 Release。
 
 ## 安卓版说明（BYD 车机 + 手机）
 

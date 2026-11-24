@@ -6,3 +6,7 @@ out/
 vendor/pet-packs/
 browser-extension/dist/
 browser-extension/*.zip
+.gitee-token
+.env
+.env.*
+!.env.example
