@@ -1,0 +1,1485 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <!-- 视口锁死成窗口的逻辑尺寸：ArkWeb 默认会按 DPI 把 device-width 换算成更小的
+         CSS 像素（实测 384 物理宽 → 203 CSS 宽），宠物和气泡就整体缩小了。
+         写死 width=384 让 1 CSS px = 1 物理 px，与 ArkTS 侧算的窗口坐标一致。 -->
+    <meta name="viewport" content="width=280, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>77 Pet</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        overscroll-behavior: none;
+      }
+      /* 根容器：把「逻辑 384 宽」的场景层整体缩放到实际视口。
+         ArkWeb 报告的 CSS 视口比窗口物理尺寸小（实测 203x209 vs 384x396），
+         用一个固定逻辑尺寸的层 + 等比缩放，就不必关心视口到底是多少。 */
+      #stage-root {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 384px;
+        height: 396px;
+        transform-origin: top left;
+      }
+      /*
+       * 安卓 WebView：任何 pause/点击都会在 video 布局盒上画出系统暂停键，
+       * CSS 藏不掉。做法是 video 挪到屏外只负责解码，可见画面用 canvas 画。
+       */
+      video {
+        position: fixed !important;
+        left: -10000px !important;
+        top: 0 !important;
+        width: 384px !important;
+        height: 216px !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        z-index: -100 !important;
+      }
+      #pet-canvas {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: var(--video-h, 216px);
+        pointer-events: none;
+        transform-origin: bottom center;
+      }
+      video::-webkit-media-controls,
+      video::-webkit-media-controls-enclosure,
+      video::-webkit-media-controls-panel,
+      video::-webkit-media-controls-play-button,
+      video::-webkit-media-controls-start-playback-button,
+      video::-webkit-media-controls-overlay-play-button {
+        display: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+
+      /* ---------- 头顶气泡（碎碎念：配图 + 一句话） ---------- */
+      /* 气泡是窗口内的绝对定位浮层。窗口比视频画布高出一截（气泡区），
+         所以它固定在视频上方；width:max-content + max-width 让短句不被拉宽。 */
+      #bubble {
+        position: absolute;
+        left: 50%;
+        bottom: var(--video-h, 216px);
+        transform: translate(-50%, -6px);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        box-sizing: border-box;
+        /* 与宠物本体等比：384 窗口下约 130px，够放一句 20 字以内的话 */
+        width: max-content;
+        max-width: 132px;
+        padding: 6px 9px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+        font-family: 'Yuanti SC', 'YouYuan', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        font-size: 11px;
+        line-height: 1.45;
+        color: #1f1f1f;
+        text-align: center;
+        pointer-events: auto;
+        cursor: pointer;
+        white-space: normal;
+        word-break: break-word;
+        z-index: 3;
+      }
+      #bubble.on {
+        display: flex;
+      }
+      /* 气泡尖角：指向宠物头顶 */
+      #bubble::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-top-color: rgba(255, 255, 255, 0.97);
+      }
+      #bubble img {
+        display: block;
+        width: 100%;
+        max-width: 112px;
+        height: auto;
+        border-radius: 7px;
+        margin-bottom: 5px;
+        pointer-events: none;
+      }
+      #bubble .row {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage-root">
+      <video id="a" playsinline muted disablepictureinpicture disableremoteplayback controlslist="nodownload nofullscreen noremoteplayback"></video>
+      <video id="b" playsinline muted disablepictureinpicture disableremoteplayback controlslist="nodownload nofullscreen noremoteplayback"></video>
+      <canvas id="pet-canvas" width="384" height="216"></canvas>
+      <div id="bubble"></div>
+    </div>
+    <script>
+      const log = (m) => console.log('[PET] ' + m);
+      const host = () => window.petHost;
+
+      const videos = [document.getElementById('a'), document.getElementById('b')];
+      const petCanvas = document.getElementById('pet-canvas');
+      const petCtx = petCanvas ? petCanvas.getContext('2d', { alpha: true }) : null;
+      /** 上一帧缓存：换片时新视频首帧未就绪就继续画它，避免清空闪一下 */
+      const holdCanvas = document.createElement('canvas');
+      holdCanvas.width = 384;
+      holdCanvas.height = 216;
+      const holdCtx = holdCanvas.getContext('2d', { alpha: true });
+      let hasHoldFrame = false;
+      /** 点击压扁画在 canvas 上，不再改 video 的 transform（video 已屏外） */
+      let squashScaleY = 1;
+      let paintRunning = false;
+      let front = 0;
+
+      function stripVideoControls(v) {
+        if (!v) return;
+        v.controls = false;
+        v.removeAttribute('controls');
+        v.setAttribute('playsinline', '');
+        v.setAttribute('webkit-playsinline', '');
+        v.setAttribute('controlslist', 'nodownload nofullscreen noremoteplayback');
+        v.muted = true;
+        try { v.disablePictureInPicture = true; } catch (_) {}
+      }
+
+      for (const v of videos) {
+        stripVideoControls(v);
+        // pause 时 Chromium 爱把 controls 加回来；立刻剥掉
+        v.addEventListener('pause', () => stripVideoControls(v));
+        v.addEventListener('play', () => stripVideoControls(v));
+      }
+
+      function videoDrawable(v) {
+        return !!(v && v.readyState >= 2 && v.videoWidth > 0 && !v.seeking);
+      }
+
+      function drawVideoOnto(ctx, v, w, h) {
+        ctx.save();
+        if (facing === 'right') {
+          ctx.translate(w, 0);
+          ctx.scale(-1, 1);
+        }
+        if (squashScaleY !== 1) {
+          ctx.translate(0, h);
+          ctx.scale(1, squashScaleY);
+          ctx.translate(0, -h);
+        }
+        const scale = Math.min(w / v.videoWidth, h / v.videoHeight);
+        const dw = v.videoWidth * scale;
+        const dh = v.videoHeight * scale;
+        const dx = (w - dw) / 2;
+        const dy = h - dh;
+        ctx.drawImage(v, dx, dy, dw, dh);
+        ctx.restore();
+      }
+
+      function paintPetFrame() {
+        paintRunning = true;
+        if (petCtx && petCanvas) {
+          const v = videos[front];
+          const w = petCanvas.width;
+          const h = petCanvas.height;
+          petCtx.clearRect(0, 0, w, h);
+          if (videoDrawable(v)) {
+            drawVideoOnto(petCtx, v, w, h);
+            if (holdCtx) {
+              holdCtx.clearRect(0, 0, w, h);
+              holdCtx.drawImage(petCanvas, 0, 0);
+              hasHoldFrame = true;
+            }
+          } else if (hasHoldFrame) {
+            // 新片还没首帧：顶住上一帧，首尾衔接时几乎看不出切换
+            petCtx.drawImage(holdCanvas, 0, 0);
+          }
+        }
+        requestAnimationFrame(paintPetFrame);
+      }
+
+      /** 等视频真正吐出一帧再切前台，避免 currentTime=0 后的空白解码间隙 */
+      function whenVideoFrame(video, cb) {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          cb();
+        };
+        if (typeof video.requestVideoFrameCallback === 'function') {
+          try {
+            video.requestVideoFrameCallback(() => finish());
+          } catch (_) {}
+        }
+        video.addEventListener('seeked', finish, { once: true });
+        // 兜底：部分机型既无 RVFC 也不再触发 seeked
+        setTimeout(finish, 64);
+      }
+      let currentName = '';
+      let facing = 'left';
+      let CFG = null;
+      let onceMode = false;
+      let started = false;
+      let dragActive = false;
+      /** 按下时的指针屏幕坐标 + 窗口坐标，拖拽全程按增量推目标 */
+      let dragDown = { sx: 0, sy: 0, px: 0, py: 0 };
+
+      // 窗口在屏幕上的位置：漫游需要从当前窗口位置往目标点推
+      /** 窗口里实际露出的宽度；左右各裁掉 52px 透明边，减少悬浮窗挡住的面积 */
+      const WIN_W = 280;
+      /** 视频舞台原始宽度（素材按 640x360 的 0.6 倍出图） */
+      const STAGE_W = 384;
+      /** 舞台左侧裁掉的透明边 */
+      const CROP_LEFT = 52;
+      /** 视频画布高度（384x216 是 640x360 的 0.6 倍） */
+      const VIDEO_H = 216;
+      /** 气泡区高度：窗口比视频画布高出的部分，留给头顶气泡。ArkTS 侧建窗时用同一数值 */
+      const WIN_PAD_TOP = 180;
+      /** 窗口高度 = 视频 + 头顶气泡区 */
+      const WIN_H = VIDEO_H + WIN_PAD_TOP;
+      let SCREEN_W = 3120;
+      let SCREEN_H = 2080;
+      let WINDOW_W = WIN_W;
+      let WINDOW_H = WIN_H;
+      let PET_SCALE = 1;
+      /** 窗口与壁纸可用区域边缘的安全距离 */
+      const EDGE_GAP = 24;
+      /** 可见角色在透明视频画布里的内缩比例；实际值由 ArkTS 按当前宠物包注入 */
+      let CONTENT_INSETS = { left: 0.3, top: 0.17, right: 0.31, bottom: 0.08 };
+      /** 模拟器兼容：待机定格，主动交互时仍播放，避免宿主 GPU 持续合成闪黑 */
+      let stableMotion = false;
+      /** 素材坐标(640x360) → 屏幕像素 的缩放；鸿蒙窗口是 384x216，即 0.6 */
+      const SCREEN_SCALE = 0.6;
+
+      /** 当前窗口允许停留的壁纸区域；底部栏等系统占位已经在 SCREEN_H 里排除 */
+      function wallpaperBounds() {
+        const maxX = Math.max(0, SCREEN_W - WINDOW_W);
+        const maxY = Math.max(0, SCREEN_H - WINDOW_H);
+        const gapX = Math.min(EDGE_GAP, maxX);
+        const gapY = Math.min(EDGE_GAP, maxY);
+        const padH = WIN_PAD_TOP / WIN_H * WINDOW_H;
+        const videoH = WINDOW_H - padH;
+        // 约束的是可见角色本身：透明气泡区和视频四周的留白都可以越过屏幕边缘。
+        const leftPx = WINDOW_W * Math.min(Math.max(CONTENT_INSETS.left, 0), 0.45);
+        const rightPx = WINDOW_W * Math.min(Math.max(CONTENT_INSETS.right, 0), 0.45);
+        const topPx = videoH * Math.min(Math.max(CONTENT_INSETS.top, 0), 0.45);
+        const bottomPx = videoH * Math.min(Math.max(CONTENT_INSETS.bottom, 0), 0.45);
+        const minX = gapX - leftPx;
+        const minY = gapY - padH - topPx;
+        return {
+          minX,
+          minY,
+          maxX: Math.max(minX, maxX - gapX + rightPx),
+          maxY: Math.max(minY, maxY - gapY + bottomPx),
+        };
+      }
+
+      function clampWindowPoint(x, y) {
+        const b = wallpaperBounds();
+        return {
+          x: Math.min(Math.max(x, b.minX), b.maxX),
+          y: Math.min(Math.max(y, b.minY), b.maxY),
+        };
+      }
+
+      // ---------- 拖拽抛掷物理 ----------
+      //
+      // 与 Electron 版 vendor/shared/physics.ts 逐行对应的移植：弹簧跟手（拖拽时不硬贴指针）、
+      // 松手按指针轨迹估初速、抛出去走重力 + 边缘反弹 + 地面摩擦。
+      // 坐标一律是「窗口左上角」的屏幕像素（宠物在窗口内不动，所以窗口位置就是宠物位置）。
+
+      const SPRING_K = 200;
+      const SPRING_C = 30;
+      const TRAIL_KEEP_MS = 200;
+      const RELEASE_WINDOW_MS = 150;
+      const RELEASE_STALE_MS = 150;
+      const MIN_SPAN_MS = 20;
+      const SEG_MIN_DT_MS = 8;
+      const DEAD_ZONE_SPEED = 500;
+      const MAX_THROW_SPEED = 3600;
+      const PEAK_WEIGHT = 0.5;
+      const ACCEL_REF = 8000;
+      const ACCEL_GAIN_MAX = 0.6;
+      const REST_VY = 40;
+      const REST_VX = 15;
+      const MAX_STEP_DT = 0.05;
+
+      /** 物理参数来自配置（与 Electron 版共用一套数值），注入前先给一份兜底 */
+      let PHYS = { gravity: 1400, restitution: 0.78, groundFriction: 2.5, ceilingBounce: true, throwPower: 1 };
+
+      /** 拖拽轨迹：松手时用它估初速。只留最近 200ms，早的采样没有参考价值 */
+      let trail = [];
+
+      const trimTrail = (arr, now) => {
+        const cutoff = now - TRAIL_KEEP_MS;
+        let i = 0;
+        while (i < arr.length && arr[i].t < cutoff) i++;
+        return i === 0 ? arr : arr.slice(i);
+      };
+
+      /** 过阻尼弹簧单轴步进；调用方随后 x += v * dt */
+      const springStep = (v, x, target, dt) =>
+        v + ((target - x) * SPRING_K - v * SPRING_C) * PHYS.throwPower * dt;
+
+      const softClampSpeed = (s) => (s <= 0 ? 0 : MAX_THROW_SPEED * (1 - Math.exp(-s / MAX_THROW_SPEED)));
+
+      /**
+       * 由指针轨迹估算松手初速（px/s）。
+       * 返回 null = 温柔放下：轨迹为空 / 停顿过久 / 窗口太短 / 低于死区速度。
+       */
+      function estimateReleaseVelocity(now) {
+        if (trail.length === 0) return null;
+        const last = trail[trail.length - 1];
+        // 松手前已经停住超过 150ms → 视为轻轻放下，之前甩过也不算
+        if (now - last.t > RELEASE_STALE_MS) return null;
+        const win = trail.filter((s) => now - s.t <= RELEASE_WINDOW_MS);
+        if (win.length < 2) return null;
+
+        const t0 = win[0].t;
+        const t1 = win[win.length - 1].t;
+        const spanMs = t1 - t0;
+        if (spanMs < MIN_SPAN_MS) return null;
+
+        const baseVx = ((win[win.length - 1].x - win[0].x) / spanMs) * 1000;
+        const baseVy = ((win[win.length - 1].y - win[0].y) / spanMs) * 1000;
+        const baseSpeed = Math.hypot(baseVx, baseVy);
+        if (baseSpeed < 1e-6) return null; // 几乎纯抖动，没有可靠方向
+
+        // 分段速度：端点均值会低估快甩（位移集中在窗口内一小段），取峰值补回来
+        const segs = [];
+        let px = win[0].x;
+        let py = win[0].y;
+        let pt = t0;
+        for (let i = 1; i < win.length; i++) {
+          const s = win[i];
+          const dt = s.t - pt;
+          // 高回报率指针事件 dt 可低至 1ms，过小的 dt 会把抖动放大成虚假峰值
+          if (dt >= SEG_MIN_DT_MS) {
+            segs.push({ speed: (Math.hypot(s.x - px, s.y - py) / dt) * 1000, tEnd: s.t });
+            px = s.x;
+            py = s.y;
+            pt = s.t;
+          }
+        }
+        const peakSpeed = segs.length ? Math.max(...segs.map((v) => v.speed)) : baseSpeed;
+
+        // 末段还在加速 → 放大初速（最多 +60%）：快速甩动的位移都堆在最后几帧
+        let accel = 0;
+        if (segs.length >= 2) {
+          const lastSeg = segs[segs.length - 1];
+          const firstSeg = segs[0];
+          accel =
+            (lastSeg.speed - firstSeg.speed) / Math.max((lastSeg.tEnd - firstSeg.tEnd) / 1000, MIN_SPAN_MS / 1000);
+        }
+        const before =
+          ((1 - PEAK_WEIGHT) * baseSpeed + PEAK_WEIGHT * peakSpeed) *
+          (1 + Math.min(Math.max(accel, 0) / ACCEL_REF, 1) * ACCEL_GAIN_MAX);
+        const speed = softClampSpeed(before) * PHYS.throwPower;
+        if (speed < DEAD_ZONE_SPEED) return null;
+        return { vx: (baseVx / baseSpeed) * speed, vy: (baseVy / baseSpeed) * speed };
+      }
+
+      // ---------- 抛掷驱动 ----------
+
+      let throwRef = 0;
+      let throwToken = 0;
+
+      /** 停止抛掷：宠物立即定格在当前落点（空中抓住、点菜单、回家时都用它） */
+      function stopThrow() {
+        throwToken++;
+        if (throwRef) {
+          cancelAnimationFrame(throwRef);
+          throwRef = 0;
+        }
+      }
+
+      /** 屏幕边界：整个窗口都必须留在壁纸可用区域内 */
+      function throwBounds() {
+        return wallpaperBounds();
+      }
+
+      /**
+       * 抛掷积分：重力 + 边缘反弹 + 地面摩擦。
+       * atRest 表示贴地且速度够小，调用方应停止循环。
+       */
+      function throwStep(s, dtRaw) {
+        const dt = Math.min(Math.max(dtRaw, 0), MAX_STEP_DT);
+        const b = throwBounds();
+        let { x, y, vx, vy } = s;
+        vy += PHYS.gravity * dt;
+        x += vx * dt;
+        y += vy * dt;
+        let bounced = false;
+
+        if (x < b.minX) {
+          x = b.minX;
+          vx = Math.abs(vx) * PHYS.restitution;
+          bounced = true;
+        } else if (x > b.maxX) {
+          x = b.maxX;
+          vx = -Math.abs(vx) * PHYS.restitution;
+          bounced = true;
+        }
+        if (y < b.minY) {
+          if (PHYS.ceilingBounce) {
+            y = b.minY;
+            vy = Math.abs(vy) * PHYS.restitution;
+            bounced = true;
+          }
+        } else if (y >= b.maxY) {
+          y = b.maxY;
+          vx *= Math.max(0, 1 - PHYS.groundFriction * dt);
+          if (Math.abs(vy) < REST_VY) vy = 0;
+          else vy = -Math.abs(vy) * PHYS.restitution;
+          bounced = true;
+        }
+        const speed = Math.hypot(vx, vy);
+        const atRest =
+          (y >= b.maxY - 1 && Math.abs(vy) < 1 && Math.abs(vx) < REST_VX) ||
+          (bounced && speed < REST_VY && Math.abs(vy) < 1);
+        return { x, y, vx, vy, bounced, atRest };
+      }
+
+      /** 甩出去：重力 + 边缘反弹，落定后把新位置记为漫游起点 */
+      function startThrow(px, py, vx, vy) {
+        stopRoam();
+        stopDragFollow();
+        const token = ++throwToken;
+        const start = clampWindowPoint(px, py);
+        let state = { x: start.x, y: start.y, vx, vy };
+        let last = performance.now();
+        let prevGrounded = false;
+
+        const step = () => {
+          if (throwToken !== token) return;
+          const now = performance.now();
+          const dt = (now - last) / 1000;
+          last = now;
+          const fallingVy = state.vy; // 积分前的竖直速度 = 落地冲击速度
+
+          const res = throwStep(state, dt);
+          state = { x: res.x, y: res.y, vx: res.vx, vy: res.vy };
+          pushMove(state.x, state.y);
+
+          // 落地 Q 弹：只在「空中 → 地面」那一帧压一次，力度随冲击速度
+          const grounded = res.y >= throwBounds().maxY - 1;
+          if (res.bounced && grounded && !prevGrounded) squash(landingSquash(fallingVy));
+          prevGrounded = grounded;
+
+          if (res.atRest) {
+            throwRef = 0;
+            baseX = state.x;
+            baseY = state.y;
+            log('throw rest at ' + Math.round(state.x) + ',' + Math.round(state.y));
+            return;
+          }
+          throwRef = requestAnimationFrame(step);
+        };
+        throwRef = requestAnimationFrame(step);
+      }
+
+      /** 落地冲击速度 → 压扁幅度：轻落 0.8、重砸 0.55（与 Electron 版同一映射） */
+      function landingSquash(impactSpeed) {
+        const t = Math.min(Math.max((Math.abs(impactSpeed) - 300) / (1500 - 300), 0), 1);
+        return Math.min(0.8, 1 - t * (1 - 0.55));
+      }
+
+      // ---------- Q 弹挤压 ----------
+
+      let squashRef = 0;
+      let squashToken = 0;
+
+      /** 前台画面垂直压扁再回弹（贴地锚定）。depth = 最低压到高度的多少 */
+      function squash(depth) {
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const token = ++squashToken;
+        if (squashRef) cancelAnimationFrame(squashRef);
+        const t0 = performance.now();
+        const step = () => {
+          if (squashToken !== token) return;
+          const u = Math.min((performance.now() - t0) / 220, 1);
+          // 下压段 ease-in 压缩，回弹段 easeOutBack 带回弹过冲
+          let scale;
+          if (u < 0.45) {
+            const p = u / 0.45;
+            scale = 1 - (1 - depth) * p * p;
+          } else {
+            const p = (u - 0.45) / 0.55;
+            const c1 = 1.70158;
+            const c3 = c1 + 1;
+            const f = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
+            scale = Math.min(1.12, depth + (1 - depth) * Math.max(f, 0));
+          }
+          squashScaleY = scale;
+          if (u < 1) {
+            squashRef = requestAnimationFrame(step);
+          } else {
+            squashRef = 0;
+            squashScaleY = 1;
+          }
+        };
+        squashRef = requestAnimationFrame(step);
+      }
+
+      // ---------- 拖拽弹簧跟随 ----------
+      //
+      // 拖拽时窗口不硬贴指针，而是用弹簧追目标点：抹平高频指针抖动，
+      // 也让「甩」有从跟手到脱手的过渡。松手后残余速度正好是抛掷初速。
+
+      let dragFollowRef = 0;
+      let dragFollowToken = 0;
+      let dragTarget = null;
+      const dragVel = { vx: 0, vy: 0 };
+      /** 弹簧跟随的当前位置（窗口左上角） */
+      let followPos = { x: 0, y: 0 };
+
+      function stopDragFollow() {
+        dragFollowToken++;
+        if (dragFollowRef) {
+          cancelAnimationFrame(dragFollowRef);
+          dragFollowRef = 0;
+        }
+        dragTarget = null;
+        dragVel.vx = 0;
+        dragVel.vy = 0;
+      }
+
+      function startDragFollow() {
+        if (dragFollowRef) return;
+        const token = ++dragFollowToken;
+        let last = performance.now();
+        const step = () => {
+          if (dragFollowToken !== token) return;
+          const target = dragTarget;
+          if (!target) {
+            dragFollowRef = 0;
+            return;
+          }
+          const now = performance.now();
+          const dt = Math.min((now - last) / 1000, 1 / 30);
+          last = now;
+          dragVel.vx = springStep(dragVel.vx, followPos.x, target.x, dt);
+          dragVel.vy = springStep(dragVel.vy, followPos.y, target.y, dt);
+          followPos.x += dragVel.vx * dt;
+          followPos.y += dragVel.vy * dt;
+          const bounded = clampWindowPoint(followPos.x, followPos.y);
+          if (bounded.x !== followPos.x) {
+            followPos.x = bounded.x;
+            dragVel.vx = 0;
+          }
+          if (bounded.y !== followPos.y) {
+            followPos.y = bounded.y;
+            dragVel.vy = 0;
+          }
+          pushMove(followPos.x, followPos.y);
+          dragFollowRef = requestAnimationFrame(step);
+        };
+        dragFollowRef = requestAnimationFrame(step);
+      }
+
+      /** 把目标窗口坐标交给 ArkTS 去 moveWindowTo */
+      function pushMove(x, y) {
+        const h = host();
+        if (h && typeof h.requestMove === 'function') {
+          const bounded = clampWindowPoint(x, y);
+          h.requestMove(Math.round(bounded.x), Math.round(bounded.y));
+        }
+      }
+
+      // ---------- 视口自适应 ----------
+      //
+      // ArkWeb 的 CSS 视口比窗口物理尺寸小（实测 384x396 的窗口 → 203x209 视口），
+      // 直接在页面里写 384 宽的布局会被压到 53%。这里反过来做：
+      //   页面按「逻辑尺寸」（宽 384、高视频 216 + 气泡区）布局，
+      //   再用 transform 等比缩放到实际视口铺满 —— 视觉上就是 1:1。
+      // 逻辑坐标与 ArkTS 的窗口坐标因此完全一致，气泡矩形上报不用换算。
+
+      /** 逻辑场景尺寸（与世界坐标一致） */
+      const LOGIC_W = WIN_W;
+      const LOGIC_H = VIDEO_H + WIN_PAD_TOP;
+
+      /** 按实际视口把场景层缩放铺满（视口变了就重算） */
+      function fitViewport() {
+        const root = document.getElementById('stage-root');
+        if (!root) return;
+        const w = window.innerWidth || LOGIC_W;
+        const h = window.innerHeight || LOGIC_H;
+        // 舞台保留 384 宽，窗口只露出中间 280 宽：裁掉两边透明区，
+        // 宠物身体还是原来的大小，但悬浮窗挡住车机界面的面积更小。
+        const s = w / LOGIC_W;
+        root.style.width = STAGE_W + 'px';
+        root.style.height = LOGIC_H + 'px';
+        root.style.left = (-CROP_LEFT * s) + 'px';
+        root.style.transform = 'scale(' + s + ')';
+        log('viewport ' + w + 'x' + h + ' -> scale ' + s.toFixed(3));
+      }
+
+      window.addEventListener('resize', fitViewport);
+
+      // ---------- 碎碎念（头顶气泡：配图 + 一句话） ----------
+      //
+      // 文案优先由 ArkTS 侧请求设置里的 OpenAI 兼容接口；未开启、未填 Key 或请求失败时，
+      // 回落到宠物包 whisper-fallbacks.json 的本地配文。它的键就是 memes/<键>.png
+      // 的文件名，所以「抽到哪张图就说那张图那组话」，图文天然对得上。
+
+      let whisperTimer = 0;
+      let bubbleHideTimer = 0;
+      /** 设置里的碎碎念开关与周期覆盖（true / 0 = 用配置里的值） */
+      let whisperEnabled = true;
+      let whisperIntervalSec = 0;
+      /** 启动后先很快说一句，让用户知道自动碎碎念是活的；之后按配置周期走 */
+      let whisperFirstDue = true;
+
+      /** 到点要一句：优先让 ArkTS 侧决定走模型还是本地文案 */
+      function requestWhisper(force) {
+        const h = host();
+        if (h && typeof h.requestWhisper === 'function') {
+          h.requestWhisper(force === true);
+        } else {
+          showWhisper(force === true);
+        }
+      }
+
+      /** 随机抽一条碎碎念并显示 */
+      function showWhisper(force) {
+        const W = CFG && CFG.whisper;
+        if (!W || (!force && (!W.enabled || !whisperEnabled)) || !W.memes || !W.memes.length) return;
+        const key = W.memes[Math.floor(Math.random() * W.memes.length)];
+        const lines = W.texts[key];
+        if (!lines || !lines.length) return;
+        const text = lines[Math.floor(Math.random() * lines.length)];
+        showBubble(text, key);
+        // 顺手播一段碎碎念动画（有的话），让「说话」这个动作看得出来
+        if (CFG.events.whisper && CFG.events.whisper.length) {
+          switchTo(pick(CFG.events.whisper, currentName), true);
+        }
+      }
+
+      /**
+       * 渲染气泡。memeName 为空则只显示文字。
+       * 自动收起时间按文字长度给足：短句 8s，长句最多 12s（够读完）。
+       */
+      function showBubble(text, memeName) {
+        const el = document.getElementById('bubble');
+        if (!el) return;
+        el.textContent = '';
+        if (memeName) {
+          const img = document.createElement('img');
+          img.addEventListener('load', () => requestAnimationFrame(reportBubbleRect));
+          img.addEventListener('error', () => {
+            log('MEME FAILED ' + memeName);
+            img.remove();
+            requestAnimationFrame(reportBubbleRect);
+          });
+          img.src = memeUrl(memeName);
+          img.alt = memeName;
+          el.appendChild(img);
+        }
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.textContent = text;
+        el.appendChild(row);
+        el.classList.add('on');
+        // 布局完成后量一次矩形上报给 ArkTS：遮罩要把气泡并进去，否则头顶这块会被裁掉
+        requestAnimationFrame(() => {
+          if (el.classList.contains('on')) reportBubbleRect();
+        });
+        hideBubbleAfter(Math.min(12000, 6000 + text.length * 200));
+        log('whisper: ' + text + (memeName ? ' (+' + memeName + ')' : ''));
+      }
+
+      /** 把气泡在窗口内的矩形报给 ArkTS（空矩形表示收起了） */
+      function reportBubbleRect() {
+        const h = host();
+        if (!h || typeof h.reportBubble !== 'function') return;
+        const el = document.getElementById('bubble');
+        if (!el || !el.classList.contains('on')) {
+          h.reportBubble(0, 0, 0, 0);
+          return;
+        }
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) {
+          h.reportBubble(0, 0, 0, 0);
+          return;
+        }
+        // getBoundingClientRect 已经是缩放后的视口坐标，乘回窗口比即得窗口坐标
+        const s = window.innerWidth ? LOGIC_W / window.innerWidth : 1;
+        h.reportBubble(r.left * s, r.top * s, r.width * s, r.height * s);
+      }
+
+      function hideBubble() {
+        const el = document.getElementById('bubble');
+        if (el) el.classList.remove('on');
+        reportBubbleRect();
+      }
+
+      function hideBubbleAfter(ms) {
+        if (bubbleHideTimer) clearTimeout(bubbleHideTimer);
+        bubbleHideTimer = setTimeout(() => {
+          bubbleHideTimer = 0;
+          hideBubble();
+        }, ms);
+      }
+
+      /** 按配置周期随机说一句；周期内再加随机抖动，避免多只宠物同时开口 */
+      function scheduleWhisper() {
+        if (whisperTimer) clearTimeout(whisperTimer);
+        whisperTimer = 0;
+        const W = CFG && CFG.whisper;
+        if (!W || !W.enabled || !whisperEnabled) return;
+        const configured = whisperIntervalSec > 0 ? whisperIntervalSec : (W.intervalSec || 300);
+        const base = Math.max(30, configured) * 1000;
+        // 第一次 8~12 秒内开口，之后 0.85~1.15 倍抖动，避免所有宠物同一秒说话
+        const wait = whisperFirstDue
+          ? 8000 + Math.random() * 4000
+          : base * (0.85 + Math.random() * 0.3);
+        whisperTimer = setTimeout(() => {
+          whisperTimer = 0;
+          whisperFirstDue = false;
+          // 拖拽中不打扰用户
+          if (!dragActive) requestWhisper(false);
+          scheduleWhisper();
+        }, wait);
+        log('next whisper in ' + Math.round(wait / 1000) + 's' + (whisperFirstDue ? ' (first)' : ''));
+      }
+
+      /** 气泡区高度：窗口比视频画布高出的部分，留给头顶气泡。ArkTS 侧建窗时用同一数值 */
+
+      /** 窗口左上角的当前 x；由 ArkTS 侧在注入配置时告知 */
+      let baseX = 1200;
+      let baseY = 600;
+      const roamOriginX = () => baseX;
+      const roamOriginY = () => baseY;
+
+      // ---------- 纯逻辑：与 Electron 版 shared-core.js 同一套语义 ----------
+
+      const pick = (pool, exclude) => {
+        if (!pool || pool.length === 0) return null;
+        const entries = exclude ? pool.filter((n) => n !== exclude) : pool;
+        const src = entries.length ? entries : pool;
+        return src[Math.floor(Math.random() * src.length)];
+      };
+
+      const pickSlot = (slot, exclude) => {
+        if (typeof slot === 'string') return slot;
+        if (!Array.isArray(slot) || slot.length === 0) return null;
+        const entries = exclude === undefined ? slot : slot.filter((n) => n !== exclude);
+        const src = entries.length ? entries : slot;
+        return src[Math.floor(Math.random() * src.length)];
+      };
+
+      const slotIncludes = (slot, anim) =>
+        typeof slot === 'string' ? slot === anim : slot.includes(anim);
+
+      const poolIncludes = (pool, anim) => (pool || []).some((s) => slotIncludes(s, anim));
+
+      const isEventAnim = (events, anim) =>
+        events ? Object.values(events).some((p) => poolIncludes(p, anim)) : false;
+
+      // 权重掷骰。fixed（宠物固定）时 turn/move 按 0 算，份额落到随机小动作。
+      const rollKind = (roll, w, fixed) => {
+        const turn = fixed ? 0 : (w.turn || 0);
+        const move = fixed ? 0 : (w.move || 0);
+        if (roll < (w.idle || 0) / 100) return 'idle';
+        if (roll < ((w.idle || 0) + turn) / 100) return 'turn';
+        if (roll < ((w.idle || 0) + turn + move) / 100) return 'move';
+        return 'action';
+      };
+
+      const pickWeightedCategory = (categories, facingDir) => {
+        const cats = (categories || []).filter((c) => Array.isArray(c.actions) && c.actions.length);
+        if (!cats.length) return null;
+        // noMirror 的类（带文字）在宠物面向右（被镜像）时不播，文字会反
+        const filtered = cats.filter((c) => !(c.noMirror && facingDir === 'right'));
+        const eligible = filtered.length ? filtered : cats;
+        const totalW = eligible.reduce((s, c) => s + (c.weight || 0), 0) || 1;
+        let t = Math.random() * totalW;
+        for (const c of eligible) {
+          t -= c.weight || 0;
+          if (t <= 0) return c;
+        }
+        return eligible[eligible.length - 1];
+      };
+
+      const pickCategoryAction = (exclude) => {
+        const cat = pickWeightedCategory(CFG.categories, facing);
+        if (!cat) return pick(CFG.idle, exclude);
+        return pick(cat.actions, exclude);
+      };
+
+      // ---------- 播放 ----------
+
+      const report = (name) => {
+        const h = host();
+        if (h && typeof h.reportMotion === 'function') h.reportMotion(name);
+      };
+
+      /** 素材路径统一按当前宠物包拼，切换宠物时只换 CFG.pack */
+      const webmUrl = (name) => './packs/' + CFG.pack + '/webm/' + name;
+      const memeUrl = (key) =>
+        './packs/' + CFG.pack + '/memes/' + encodeURIComponent(key) + '.png';
+
+      /** 每段动画的播放时长由视频本身决定；循环播放不会触发 ended，必须有兜底定时器 */
+      let advanceTimer = 0;
+      let stablePauseTimer = 0;
+
+      function clearAdvance() {
+        if (advanceTimer) {
+          clearTimeout(advanceTimer);
+          advanceTimer = 0;
+        }
+      }
+
+      function clearStablePause() {
+        if (stablePauseTimer) {
+          clearTimeout(stablePauseTimer);
+          stablePauseTimer = 0;
+        }
+      }
+
+      /** 模拟器里让循环待机停在首帧；拖拽和单次事件动画不打断 */
+      function scheduleStablePause(videoEl) {
+        clearStablePause();
+        if (!stableMotion || onceMode || dragActive) return;
+        stablePauseTimer = setTimeout(() => {
+          stablePauseTimer = 0;
+          if (videos[front] !== videoEl || onceMode || dragActive) return;
+          stripVideoControls(videoEl);
+          videoEl.pause();
+          stripVideoControls(videoEl);
+          log('stable idle paused');
+        }, 180);
+      }
+
+      /**
+       * 排下一次推进。
+       * 循环动画（loop=true）永远不触发 ended，所以按视频时长定时推进；
+       * 单次动画（once）也挂同样的兜底，防止某些编码下 ended 不触发而卡死。
+       */
+      function scheduleAdvance(videoEl) {
+        clearAdvance();
+        if (stableMotion && !onceMode) return;
+        const durationMs = (videoEl.duration || 4) * 1000;
+        // 循环动画播满一轮就换下一个；单次动画等它自然结束（handleEnded 会 clearAdvance）
+        const wait = onceMode ? durationMs + 120 : Math.max(1500, durationMs * 0.9);
+        advanceTimer = setTimeout(() => {
+          advanceTimer = 0;
+          if (videos[front] !== videoEl) return;
+          if (onceMode) {
+            handleEnded();
+          } else {
+            playIdle();
+          }
+        }, wait);
+      }
+
+      function switchTo(name, once, onReady) {
+        if (!name) return;
+        const nextIdx = 1 - front;
+        const next = videos[nextIdx];
+        const prev = videos[front];
+
+        currentName = name;
+        onceMode = once === true;
+        clearAdvance();
+
+        const url = webmUrl(name);
+        if (next.getAttribute('src') !== url) {
+          next.setAttribute('src', url);
+        }
+        next.loop = !onceMode;
+
+        const start = () => {
+          if (currentName !== name) return;
+          stripVideoControls(next);
+          stripVideoControls(prev);
+
+          // 换片期间 front 仍画 prev/hold；新片解码出首帧后再切，避免闪空
+          let revealed = false;
+          const reveal = () => {
+            if (revealed || currentName !== name) return;
+            revealed = true;
+            front = nextIdx;
+            requestAnimationFrame(() => {
+              try {
+                if (prev !== next && !prev.paused) prev.pause();
+              } catch (_) {}
+            });
+            report(name);
+            scheduleAdvance(next);
+            scheduleStablePause(next);
+            if (onReady) onReady();
+          };
+
+          let kicked = false;
+          const kick = () => {
+            if (kicked || currentName !== name) return;
+            kicked = true;
+            next.play()
+              .then(() => whenVideoFrame(next, reveal))
+              .catch((e) => {
+                log('PLAY FAILED ' + name + ': ' + e);
+                reveal();
+              });
+          };
+
+          const seekThenPlay = () => {
+            if (next.currentTime <= 0.001 && videoDrawable(next)) {
+              kick();
+              return;
+            }
+            let seekDone = false;
+            const afterSeek = () => {
+              if (seekDone) return;
+              seekDone = true;
+              next.removeEventListener('seeked', afterSeek);
+              kick();
+            };
+            next.addEventListener('seeked', afterSeek);
+            try {
+              next.currentTime = 0;
+            } catch (_) {
+              afterSeek();
+              return;
+            }
+            setTimeout(afterSeek, 80);
+          };
+
+          seekThenPlay();
+        };
+
+        // 未加载完时等 loadeddata，避免 currentTime/play 落在无数据状态
+        if (next.readyState >= 2 && next.getAttribute('src') === url) {
+          start();
+        } else {
+          let loaded = false;
+          const onLoaded = () => {
+            if (loaded) return;
+            loaded = true;
+            next.removeEventListener('loadeddata', onLoaded);
+            if (currentName === name) start();
+          };
+          next.addEventListener('loadeddata', onLoaded);
+          // 兜底：已经能播但没触发事件
+          setTimeout(onLoaded, 400);
+        }
+        log('play ' + name + (onceMode ? ' (once)' : ''));
+      }
+
+      /** 随机链：掷骰决定播哪一档 */
+      function playIdle() {
+        if (dragActive) return;
+        stopRoam();
+        if (stableMotion) {
+          switchTo(pick(CFG.idle, currentName), false);
+          return;
+        }
+        const k = rollKind(Math.random(), CFG.weights, false);
+        let next;
+        if (k === 'idle') {
+          next = pick(CFG.idle, currentName);
+        } else if (k === 'turn') {
+          next = pick(CFG.turn, currentName);
+        } else if (k === 'move') {
+          if (startRoam()) return; // 走成功就不再播普通动画
+          next = pickCategoryAction(currentName);
+        } else {
+          next = pickCategoryAction(currentName);
+        }
+        // 与 Mac 版一致：每段动画完整播一遍再进入下一段，转向动画播完才会真的翻面
+        switchTo(next, true);
+      }
+
+      // ---------- 漫游：窗口位移 ----------
+      //
+      // 与 Electron 版同一套几何：动画首尾各 leadSec/tailSec 秒原地不动，中间匀速平移；
+      // 移动的是窗口本身（宠物在窗口内不动），所以这里只算目标坐标交给 ArkTS。
+
+      let roam = null;
+
+      function stopRoam() {
+        roam = null;
+      }
+
+      /** 选一段移动动画并申请移动；返回 false 表示这次走不了（撞边界/无素材） */
+      function startRoam(forcedName) {
+        const moves = CFG.moves || [];
+        if (!moves.length) return false;
+        const m = forcedName
+          ? moves.find((item) => item.name === forcedName)
+          : moves[Math.floor(Math.random() * moves.length)];
+        if (!m) return false;
+
+        const startX = roamOriginX();
+        const startY = roamOriginY();
+        // 朝向：面向左往左走，面向右往右走（与 Electron 一致）
+        const dir = facing === 'right' ? 1 : -1;
+        const dist = m.minDist + Math.random() * (m.maxDist - m.minDist);
+        const targetX = startX + dir * dist * SCREEN_SCALE * PET_SCALE;
+
+        // 边界：只约束可见角色，透明留白可以移出屏幕
+        const b = wallpaperBounds();
+        const margin = (m.margin || 20) * SCREEN_SCALE;
+        // b 是「可见角色」的边界，可能已经是负数；margin 要加在它上面，
+        // 不能再拿屏幕坐标的 0 当起点，否则靠边时会白丢一大段可走范围。
+        const minX = Math.min(b.maxX, b.minX + margin);
+        const maxX = Math.max(minX, b.maxX - margin);
+        if (targetX < minX || targetX > maxX) {
+          log('roam rejected: ' + m.name + ' target=' + Math.round(targetX) +
+              ' outside [' + Math.round(minX) + ',' + Math.round(maxX) + ']');
+          return false;
+        }
+
+        log('roam start: ' + m.name + ' ' + Math.round(startX) + ' → ' + Math.round(targetX) +
+            ' (dist=' + Math.round(dist * SCREEN_SCALE) + ')');
+        roam = {
+          name: m.name,
+          startX,
+          startY,
+          targetX,
+          leadSec: m.leadSec,
+          tailSec: m.tailSec,
+          videoEl: null,
+        };
+        switchTo(m.name, true, () => {
+          // 动画就绪后开始按进度驱动窗口
+          if (!roam) return;
+          roam.videoEl = videos[front];
+          driveRoam();
+        });
+        return true;
+      }
+
+      function driveRoam() {
+        if (!roam || !roam.videoEl) return;
+        const el = roam.videoEl;
+        const duration = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 4;
+        // 个别宠物包的移动动画只有不到 1 秒，而配置里的 lead/tail 是给长动画写的。
+        // 把首尾停顿压到动画时长以内，否则会“原地不动却记成已经走到终点”。
+        const leadSec = Math.min(Math.max(roam.leadSec || 0, 0), duration * 0.4);
+        const tailSec = Math.min(Math.max(roam.tailSec || 0, 0), duration * 0.4);
+        const window_ = Math.max(0.1, duration - leadSec - tailSec);
+        const t = el.currentTime || 0;
+
+        let x;
+        // 先判“已到收尾段”：短动画里 t=0 也可能同时满足开头和收尾条件，
+        // 这时必须以终点为准，否则窗口永远停在起点。
+        if (t >= duration - tailSec) {
+          x = roam.targetX;
+        } else if (t <= leadSec) {
+          x = roam.startX;
+        } else {
+          const p = (t - leadSec) / window_;
+          x = roam.startX + (roam.targetX - roam.startX) * p;
+        }
+        const h = host();
+        if (h && typeof h.requestMove === 'function') {
+          h.requestMove(Math.round(x), Math.round(roam.startY));
+        }
+
+        if (t >= duration - tailSec) {
+          // 到达终点：把起始位置更新成新位置
+          baseX = roam.targetX;
+          log('roam done at ' + Math.round(roam.targetX));
+          roam = null;
+          return;
+        }
+        requestAnimationFrame(driveRoam);
+      }
+
+      /** 事件动画播完：回 idle，不进随机链 */
+      function handleEnded() {
+        clearAdvance();
+        if (dragActive) return;
+        if (isEventAnim(CFG.events, currentName)) {
+          const h = host();
+          if (h && typeof h.onEventEnd === 'function') h.onEventEnd(currentName);
+          switchTo(pick(CFG.idle, currentName), false);
+          return;
+        }
+        // 转向动画播完：翻面
+        if (poolIncludes(CFG.turn, currentName)) {
+          facing = facing === 'left' ? 'right' : 'left';
+          applyFacing();
+        }
+        // 点击/拖拽回应播完：回 idle
+        if (poolIncludes(CFG.drag, currentName) || poolIncludes(CFG.clicks, currentName)) {
+          switchTo(pick(CFG.idle, currentName), false);
+          return;
+        }
+        playIdle();
+      }
+
+      function applyFacing() {
+        // 朝向只影响 canvas 绘制，不再给屏外 video 加 flip class
+      }
+
+      // ---------- 外部事件（由 ArkTS 侧调用） ----------
+
+      window.petApi = {
+        /** 点击宠物：随机播一个点击回应 */
+        click() {
+          if (!CFG) return;
+          dragActive = false;
+          stopRoam();
+          const name = pick(CFG.clicks, currentName);
+          // 等点击回应真正切到前台后再压扁；否则会作用在旧视频上，看起来没有反馈。
+          switchTo(name, true, () => squash(0.55));
+        },
+        /** 点播指定动画（右键菜单选中的那一段），播完回状态机 */
+        play(file) {
+          if (!CFG || !file) return;
+          dragActive = false;
+          stopRoam();
+          // 移动类动画要真的把窗口走起来，和 macOS 右键菜单的行为一致。
+          if ((CFG.moves || []).some((m) => m.name === file) && startRoam(file)) {
+            return;
+          }
+          switchTo(file, true);
+        },
+        /**
+         * 拖拽开始。sx/sy 是按下时的屏幕坐标，px/py 是当时的窗口坐标 ——
+         * 之后全部按「指针屏幕增量」推目标，与窗口被逐帧移动无关。
+         */
+        dragStart(sx, sy, px, py) {
+          if (!CFG) return;
+          clearStablePause();
+          dragActive = true;
+          stopRoam();
+          stopThrow();
+          trail = [];
+          dragDown = { sx, sy, px, py };
+          followPos = { x: px, y: py };
+          dragVel.vx = 0;
+          dragVel.vy = 0;
+          hideBubble();
+          if (CFG.drag && CFG.drag.length) switchTo(CFG.drag[0], false);
+        },
+        /** 拖拽中：指针移动了 dx/dy，更新弹簧目标 */
+        dragMove(x, y) {
+          if (!CFG || !dragActive) return;
+          const now = performance.now();
+          trail.push({ t: now, x, y });
+          trail = trimTrail(trail, now);
+          dragTarget = {
+            x: dragDown.px + (x - dragDown.sx),
+            y: dragDown.py + (y - dragDown.sy),
+          };
+          const bounded = clampWindowPoint(dragTarget.x, dragTarget.y);
+          dragTarget.x = bounded.x;
+          dragTarget.y = bounded.y;
+          startDragFollow();
+        },
+        /**
+         * 拖拽结束。松手够快就甩出去（重力 + 边缘反弹），否则原地放下。
+         * 用弹簧跟随的实际位置作为起点（跟手有滞后，落点跟宠物实际位置走）。
+         */
+        dragEnd() {
+          if (!CFG) return;
+          dragActive = false;
+          stopDragFollow();
+          const px = followPos.x;
+          const py = followPos.y;
+          const vel = estimateReleaseVelocity(performance.now());
+          trail = [];
+          if (vel) {
+            log('release vx=' + Math.round(vel.vx) + ' vy=' + Math.round(vel.vy));
+            startThrow(px, py, vel.vx, vel.vy);
+          } else {
+            baseX = px;
+            baseY = py;
+          }
+          if (!CFG.idle || !CFG.idle.length) return;
+          switchTo(pick(CFG.idle, currentName), true);
+        },
+        /** 余额事件：按已用百分比选档 */
+        balance(pct) {
+          if (!CFG) return;
+          const pool = CFG.events.balance || [];
+          if (!pool.length) return;
+          const idx = pct >= 100 ? Math.min(pool.length - 1, 5) : Math.floor(pct / 20);
+          switchTo(pool[Math.min(idx, pool.length - 1)], true);
+        },
+        /** 工作状态事件：档位索引 0..5 */
+        workStatus(index) {
+          if (!CFG) return;
+          const pool = CFG.events.workStatus || [];
+          if (index < 0 || index >= pool.length) return;
+          switchTo(pickSlot(pool[index], currentName), false);
+        },
+        /** 碎碎念随机播一段 */
+        whisper() {
+          if (!CFG) return;
+          switchTo(pick(CFG.events.whisper, currentName), true);
+        },
+      };
+
+      // ---------- 启动 ----------
+
+      function boot(cfg) {
+        if (started) return;
+        started = true;
+        CFG = cfg;
+        stableMotion = cfg.stableMotion === true;
+        if (typeof cfg.screenW === 'number' && cfg.screenW > 0) SCREEN_W = cfg.screenW;
+        if (typeof cfg.screenH === 'number' && cfg.screenH > 0) SCREEN_H = cfg.screenH;
+        if (typeof cfg.windowW === 'number' && cfg.windowW > 0) WINDOW_W = cfg.windowW;
+        if (typeof cfg.windowH === 'number' && cfg.windowH > 0) WINDOW_H = cfg.windowH;
+        if (cfg.contentInsets) CONTENT_INSETS = cfg.contentInsets;
+        const origin = clampWindowPoint(
+          typeof cfg.originX === 'number' ? cfg.originX : baseX,
+          typeof cfg.originY === 'number' ? cfg.originY : baseY
+        );
+        baseX = origin.x;
+        baseY = origin.y;
+        if (cfg.physics) PHYS = cfg.physics;
+        followPos = { x: baseX, y: baseY };
+        // 视频高度由窗口尺寸决定：窗口高 - 气泡区 = 视频画布
+        document.documentElement.style.setProperty('--video-h', VIDEO_H + 'px');
+        fitViewport();
+        if (!paintRunning) paintPetFrame();
+        log('config loaded: idle=' + cfg.idle.length +
+            ' clicks=' + cfg.clicks.length +
+            ' categories=' + cfg.categories.length +
+            ' moves=' + (cfg.moves || []).length +
+            ' events=' + Object.keys(cfg.events).join(',') +
+            ' origin=' + baseX + ',' + baseY +
+            ' screen=' + SCREEN_W + 'x' + SCREEN_H +
+            ' window=' + WINDOW_W + 'x' + WINDOW_H);
+        if (cfg.whisper) {
+          log('whisper: ' + cfg.whisper.memes.length + ' memes, every ' +
+              cfg.whisper.intervalSec + 's');
+        }
+        applyFacing();
+        switchTo(pick(CFG.idle), false);
+        scheduleWhisper();
+
+        const h = host();
+        if (h && typeof h.ready === 'function') h.ready(CFG.idle.length + CFG.clicks.length);
+      }
+
+      /**
+       * 运行时切换宠物包：停掉旧包的动画、碎碎念和物理状态，再换一套素材。
+       * 页面和窗口都不重建，所以不会闪一下、也不会丢当前位置。
+       */
+      function switchPack(cfg) {
+        if (!started) {
+          boot(cfg);
+          return;
+        }
+        stopRoam();
+        stopThrow();
+        stopDragFollow();
+        clearAdvance();
+        clearStablePause();
+        hideBubble();
+        if (whisperTimer) {
+          clearTimeout(whisperTimer);
+          whisperTimer = 0;
+        }
+        CFG = cfg;
+        stableMotion = cfg.stableMotion === true;
+        currentName = '';
+        onceMode = false;
+        dragActive = false;
+        if (typeof cfg.screenW === 'number' && cfg.screenW > 0) SCREEN_W = cfg.screenW;
+        if (typeof cfg.screenH === 'number' && cfg.screenH > 0) SCREEN_H = cfg.screenH;
+        if (typeof cfg.windowW === 'number' && cfg.windowW > 0) WINDOW_W = cfg.windowW;
+        if (typeof cfg.windowH === 'number' && cfg.windowH > 0) WINDOW_H = cfg.windowH;
+        if (cfg.contentInsets) CONTENT_INSETS = cfg.contentInsets;
+        const origin = clampWindowPoint(
+          typeof cfg.originX === 'number' ? cfg.originX : baseX,
+          typeof cfg.originY === 'number' ? cfg.originY : baseY
+        );
+        baseX = origin.x;
+        baseY = origin.y;
+        if (cfg.physics) PHYS = cfg.physics;
+        followPos = { x: baseX, y: baseY };
+        for (const v of videos) {
+          stripVideoControls(v);
+          v.pause();
+          v.removeAttribute('src');
+          v.load();
+        }
+        front = 0;
+        switchTo(pick(CFG.idle), false);
+        scheduleWhisper();
+        log('pack switched: ' + cfg.pack);
+      }
+
+      // 配置由 ArkTS 侧读 rawfile 后注入 —— resource://rawfile 下 fetch 不可用（实测
+      // "TypeError: Failed to fetch"），所以不能走 fetch。
+      window.petBoot = (cfg) => boot(cfg);
+      window.petPackSwitch = (cfg) => switchPack(cfg);
+
+      /** 拖拽结束后同步窗口真实位置，否则下次漫游会从旧位置起算 */
+      window.petSyncPos = (x, y) => {
+        const bounded = clampWindowPoint(x, y);
+        baseX = bounded.x;
+        baseY = bounded.y;
+        followPos = { x: bounded.x, y: bounded.y };
+        stopRoam();
+        stopThrow();
+        stopDragFollow();
+      };
+
+      /** 横竖屏切换：更新屏幕边界，并停在旋转后的新位置 */
+      window.petScreenChanged = (screenW, screenH, windowW, windowH, x, y) => {
+        if (typeof screenW === 'number' && screenW > 0) SCREEN_W = screenW;
+        if (typeof screenH === 'number' && screenH > 0) SCREEN_H = screenH;
+        if (typeof windowW === 'number' && windowW > 0) WINDOW_W = windowW;
+        if (typeof windowH === 'number' && windowH > 0) WINDOW_H = windowH;
+        const bounded = clampWindowPoint(x, y);
+        baseX = bounded.x;
+        baseY = bounded.y;
+        followPos = { x: bounded.x, y: bounded.y };
+        stopRoam();
+        stopThrow();
+        stopDragFollow();
+        fitViewport();
+        log('screen changed: screen=' + SCREEN_W + 'x' + SCREEN_H +
+            ' window=' + WINDOW_W + 'x' + WINDOW_H +
+            ' pos=' + baseX + ',' + baseY);
+      };
+
+      /** 手动触发一次碎碎念（设置/菜单里可以调） */
+      window.petWhisper = () => {
+        requestWhisper(true);
+      };
+
+      /** 右键/长按菜单打开前先让宠物停住，避免菜单悬停时宠物还在走动 */
+      window.petPauseForMenu = () => {
+        stopRoam();
+        stopThrow();
+        stopDragFollow();
+      };
+
+      /** ArkTS 侧模型生成成功：显示文本 + 指定表情包 */
+      window.petShowWhisper = (text, memeName) => {
+        if (!text) {
+          showWhisper(true);
+          return;
+        }
+        showBubble(text, memeName);
+        if (CFG && CFG.events && CFG.events.whisper && CFG.events.whisper.length) {
+          switchTo(pick(CFG.events.whisper, currentName), true);
+        }
+      };
+
+      /** ArkTS 侧模型失败/未配置：回落到宠物包自带文案 */
+      window.petWhisperFallback = (force) => {
+        showWhisper(force === true);
+      };
+
+      /** 立即收起气泡 */
+      window.petHideBubble = () => {
+        hideBubble();
+      };
+
+      /**
+       * 应用设置（由 ArkTS 侧推来）。
+       *
+       * 只处理页面自己负责的部分：透明度（CSS）、行走权重（随机链）、碎碎念周期与开关。
+       * 缩放由 ArkTS 直接改窗口尺寸 —— 页面不用知道自己多大，CSS 都是百分比。
+       */
+      window.petSettings = (s, windowScale) => {
+        if (!s) return;
+        if (typeof s.opacity === 'number') {
+          document.body.style.opacity = String(Math.min(Math.max(s.opacity, 0.1), 1));
+        }
+        if (typeof s.stableMotion === 'boolean' && s.stableMotion !== stableMotion) {
+          stableMotion = s.stableMotion;
+          const el = videos[front];
+          if (stableMotion) {
+            clearAdvance();
+            scheduleStablePause(el);
+          } else if (el) {
+            clearStablePause();
+            el.play().catch((e) => log('PLAY FAILED on resume: ' + e));
+            if (!onceMode) scheduleAdvance(el);
+          }
+        }
+        if (typeof s.moveWeight === 'number' && CFG && CFG.weights) {
+          // 0 = 完全不走动；其余直接替换配置里的 move 权重
+          CFG.weights.move = Math.max(0, s.moveWeight);
+        }
+        if (typeof windowScale === 'number' && windowScale > 0) {
+          PET_SCALE = windowScale;
+          WINDOW_W = Math.round(WIN_W * windowScale);
+          WINDOW_H = Math.round(WIN_H * windowScale);
+          const bounded = clampWindowPoint(baseX, baseY);
+          baseX = bounded.x;
+          baseY = bounded.y;
+          followPos = { x: baseX, y: baseY };
+        }
+        let whisperConfigChanged = false;
+        if (typeof s.whisperOn === 'boolean' && s.whisperOn !== whisperEnabled) {
+          const wasEnabled = whisperEnabled;
+          whisperEnabled = s.whisperOn;
+          whisperConfigChanged = true;
+          if (!s.whisperOn) {
+            // 关掉时把正在显示的也收起来，不留一句「已关闭但仍挂着」的话
+            hideBubble();
+            if (whisperTimer) {
+              clearTimeout(whisperTimer);
+              whisperTimer = 0;
+            }
+          } else if (!wasEnabled) {
+            // 重新打开时先很快说一句，而不是再等满一个周期
+            whisperFirstDue = true;
+          }
+        }
+        if (typeof s.whisperSec === 'number' && Math.max(30, s.whisperSec) !== whisperIntervalSec) {
+          whisperIntervalSec = Math.max(30, s.whisperSec);
+          whisperConfigChanged = true;
+        }
+        // 周期或开关变了就重排下一次
+        if (whisperConfigChanged) {
+          scheduleWhisper();
+        }
+        log('settings applied: ' + JSON.stringify(s));
+      };
+
+      for (const v of videos) {
+        v.addEventListener('ended', () => {
+          // 只有前台那一路播完才推进状态机
+          if (v === videos[front]) handleEnded();
+        });
+        v.addEventListener('error', () => {
+          log('VIDEO ERROR ' + v.getAttribute('src'));
+        });
+      }
+
+      // 点气泡本身把它收起，不打断宠物当前动作。
+      const bubbleEl = document.getElementById('bubble');
+      if (bubbleEl) {
+        bubbleEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          hideBubble();
+        });
+        // 表情包是异步加载的：图片到达后气泡会变高。尺寸一变就重新上报，
+        // 否则窗口遮罩还停在“只有文字”的高度，图片会被裁掉。
+        if (typeof ResizeObserver === 'function') {
+          new ResizeObserver(() => {
+            if (bubbleEl.classList.contains('on')) reportBubbleRect();
+          }).observe(bubbleEl);
+        }
+      }
+    </script>
+  </body>
+</html>

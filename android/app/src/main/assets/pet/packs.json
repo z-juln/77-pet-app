@@ -1,0 +1,27 @@
+{
+  "default": "blue-maid",
+  "pets": [
+    {
+      "id": "blue-maid",
+      "name": "蓝毛小女仆",
+      "preview": "preview.png",
+      "bounds": {
+        "left": 0.30625,
+        "top": 0.16111,
+        "right": 0.68281,
+        "bottom": 0.92222
+      }
+    },
+    {
+      "id": "kunkun-chick",
+      "name": "小黑鸡坤坤",
+      "preview": "preview.png",
+      "bounds": {
+        "left": 0.33906,
+        "top": 0.17222,
+        "right": 0.65938,
+        "bottom": 0.92222
+      }
+    }
+  ]
+}

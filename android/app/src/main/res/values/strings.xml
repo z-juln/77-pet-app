@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">77 Pet</string>
+    <string name="settings_title">桌宠设置</string>
+    <string name="about_title">关于 77 Pet</string>
+    <string name="notification_channel">桌宠运行</string>
+    <!-- 运行时按 DeviceProfile 覆盖；此处仅作车机默认回退 -->
+    <string name="notification_title">77 Pet 正在你的车机上</string>
+    <string name="notification_body">点按打开设置，或从桌宠菜单退出</string>
+    <string name="notification_exit">退出桌宠</string>
+</resources>
